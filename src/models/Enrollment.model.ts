@@ -40,7 +40,6 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     startedAt:    { type: Date, default: Date.now },
     completedAt:  { type: Date },
     lastActivityAt: { type: Date, default: Date.now },
-    lastReadLabel:  { type: String }, // "2 hours ago" — computed client-side, stored for search
 
     xpEarned:    { type: Number, default: 0 },
     isSaved:     { type: Boolean, default: false },     // bookmarked/saved to list

@@ -21,11 +21,10 @@ import {
   validateResetPassword,
   validateUpdatePassword,
   validateUpdateProfile,
-} from '../validators/auth.validator';
+} from '../helpers/validators/auth.validator';
 
 const router = Router();
 
-// 
 // PUBLIC — no token required
 // 
 

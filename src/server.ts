@@ -10,7 +10,7 @@ import connectDB from './config/database';
 import {
   errorHandler,
   handle404,
-  jsonParseErrorHandler,
+  // jsonParseErrorHandler,
   extendResponse,
 } from './middleware/error';
 
@@ -44,7 +44,7 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
-app.use(jsonParseErrorHandler);
+// app.use(jsonParseErrorHandler);
 app.use(extendResponse);
 
 if (process.env.NODE_ENV === 'development') {
@@ -70,7 +70,7 @@ app.get('/health', (_req, res) => {
 
 // Legacy NURTW auth (keep if still needed)
 import authRoutes        from './routes/auth.routes';
-import adminRoutes       from './routes/admin.routes';
+// import adminRoutes       from './routes/admin.routes';
 
 // LawTicha admin
 import adminAuthRoutes   from './routes/adminAuth.routes';
@@ -81,7 +81,7 @@ import lawyerRoutes      from './routes/lawyer.routes';
 
 // Legacy NURTW
 app.use('/api/v1/auth',   authRoutes);
-app.use('/api/v1/admin',  adminRoutes);
+// app.use('/api/v1/admin',  adminRoutes);
 
 // LawTicha Admin Auth
 app.use('/api/v1/auth/admin', adminAuthRoutes);

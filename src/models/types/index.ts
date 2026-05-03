@@ -1,6 +1,6 @@
-import { ObjectId } from 'mongoose';
+import { ObjectId, Types } from 'mongoose';
 
-//  Enums 
+// Enums 
 
 export enum UserRole {
   CITIZEN = 'citizen',
@@ -22,7 +22,7 @@ export enum ConsultStatus {
   CANCELLED = 'cancelled',
 }
 
-export enum LawyerVerificationStatus {
+export enum VerificationStatus {
   PENDING          = 'pending',
   CREDENTIAL_CHECK = 'credential_check',
   TRAINING         = 'training',
@@ -37,7 +37,23 @@ export enum LawyerBadge {
   RESPONSIVE = 'Responsive',
 }
 
-//  Base 
+export enum AuditAction {
+  CITIZEN_STATUS_CHANGED    = 'citizen_status_changed',
+  CITIZEN_EMAIL_SENT        = 'citizen_email_sent',
+  LAWYER_STATUS_CHANGED     = 'lawyer_status_changed',
+  LAWYER_EMAIL_SENT         = 'lawyer_email_sent',
+  VERIFICATION_APPROVED     = 'verification_approved',
+  VERIFICATION_REJECTED     = 'verification_rejected',
+  VERIFICATION_INFO_REQUEST = 'verification_info_request',
+  DOCUMENT_VERIFIED         = 'document_verified',
+}
+
+export enum AdminRole {
+  SUPER_ADMIN = 'super_admin',
+  ADMIN       = 'admin',
+}
+
+// Base 
 
 export interface BaseModel {
   _id?: ObjectId;
@@ -45,7 +61,7 @@ export interface BaseModel {
   updatedAt?: Date;
 }
 
-//  User 
+// User 
 
 export interface IUser extends BaseModel {
   email?: string;
@@ -59,41 +75,55 @@ export interface IUser extends BaseModel {
   isActive: boolean;
   isVerified: boolean;
   lastLoginAt?: Date;
+  // select: false fields (not returned by default)
+  password?: string;
+  refreshToken?: string;
+  passwordChangedAt?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
 }
 
-//  Citizen Profile 
+// Citizen Profile 
 
 export interface ICitizenProfile extends BaseModel {
   userId: ObjectId;
+
+  // Contact & location
   phone?: string;
   stateCode?: string;
   bio?: string;
 
+  // Gamification
   xpTotal: number;
   xpLevel: number;
   streakDays: number;
   streakLastAt?: Date;
-  joinedDays: number;
 
+  // Learning stats
   topicsCompletedCount: number;
   certificatesCount: number;
   totalStudyMinutes: number;
 
+  // Preferences
   preferredLanguage: string;
   jurisdictionCode: string;
   legalInterestAreas: string[];
 
-  // Privacy
+  // Privacy toggles
   showActivityPublic: boolean;
   allowAnonymousAnalytics: boolean;
   personalizedRecommend: boolean;
   showProfileInCommunity: boolean;
 
-  // Notification flags
+  // Notification channels
   notifEmail: boolean;
   notifSms: boolean;
   notifPush: boolean;
   notifInAppBadge: boolean;
+
+  // Notification types
   notifLawyerResponse: boolean;
   notifConsultReminder: boolean;
   notifMatchAlert: boolean;
@@ -117,7 +147,7 @@ export interface ICitizenProfile extends BaseModel {
   acceptedTermsAt?: Date;
 }
 
-//  Lawyer Profile 
+// Lawyer Profile 
 
 export interface IFeeSchedule {
   message: number;
@@ -125,34 +155,168 @@ export interface IFeeSchedule {
   video: number;
 }
 
+export interface IVerificationDocument {
+  label: string;
+  filename: string;
+  fileUrl: string;
+  uploadedAt: Date;
+  sizeBytes: number;
+  verified: boolean | null;
+}
+
 export interface ILawyerProfile extends BaseModel {
   userId: ObjectId;
-  nbaNumber: string;
-  yearOfCall: number;
-  title?: string;
+  // NBA & professional identity
+  nbaNumber?: string;
+  yearOfCall?: number;
+  calledAt?: string;        // "2019"
+  title?: string;           // "Employment & Labour Lawyer"
   bio?: string;
-  initials?: string;
-  specialisms: string[];
+  specialisms: string[];    // ['criminal', 'employment', 'property', ...]
+  languages: string[];      // ['English', 'Igbo', 'Yoruba']
+
+  // Location
   location?: string;
   state?: string;
   stateCode?: string;
-  languages: string[];
-  verificationStatus: LawyerVerificationStatus;
+
+  // Verification workflow (embedded — no separate model needed for simple cases)
+  verificationStatus: VerificationStatus;
   verificationRejectedReason?: string;
   verifiedAt?: Date;
+  verificationDocuments: IVerificationDocument[];
+  verificationAdminNote?: string;
+  verificationReviewedBy?: Types.ObjectId;
+  verificationReviewedAt?: Date;
+
+  // Badges (assigned after verification)
   badges: LawyerBadge[];
+
+  // Availability & fees
   isAvailable: boolean;
   fees: IFeeSchedule;
+
+  // Performance metrics (denormalised for fast rendering)
   ratingAvg: number;
   reviewCount: number;
   consultationCount: number;
   responseTimeLabel: string;
+
+  // Platform
   subscriptionTier: 'basic' | 'pro';
+
+  // UI avatar colours
   colorA: string;
   colorB: string;
 }
 
-//  Legal Topic 
+// Admin User 
+
+export interface IAdminUser extends BaseModel {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: AdminRole;
+  isActive: boolean;
+  lastLogin?: Date;
+  removedAt?: Date;
+  removedBy?: ObjectId;
+}
+
+// Audit Log 
+
+export interface IAuditLog extends BaseModel {
+  adminId: ObjectId;
+  adminName: string;
+  action: AuditAction;
+  targetType: 'citizen' | 'lawyer' | 'verification' | 'document';
+  targetId: ObjectId | string;
+  meta?: Record<string, unknown>;
+}
+
+// OTP 
+
+export interface IOtp extends BaseModel {
+  phone: string;
+  code: string;
+  expiresAt: Date;
+  used: boolean;
+  attempts: number;
+}
+
+// Consultation 
+
+export interface ITimelineEvent {
+  time: Date;
+  label: string;
+  note?: string;
+}
+
+export interface IConsultation extends BaseModel {
+  citizenId: ObjectId;
+  lawyerId: ObjectId;
+  lawyerProfileId: ObjectId;
+  mode: ConsultMode;
+  topic: string;
+  detail?: string;
+  status: ConsultStatus;
+  scheduledAt?: Date;
+  completedAt?: Date;
+  durationMins?: number;
+  feePaid: number;
+  isCharged: boolean;
+  receiptId?: string;
+  paymentRef?: string;
+  citizenRating?: number;
+  citizenReview?: string;
+  reviewedAt?: Date;
+  timeline: ITimelineEvent[];
+  declineReason?: string;
+  cancelledBy?: 'citizen' | 'lawyer' | 'system';
+}
+
+// Lawyer Request 
+
+export interface ILawyerRequest extends BaseModel {
+  citizenId: ObjectId;
+  specialism: string;
+  urgency: string;
+  location?: string;
+  budget: string;
+  description: string;
+  status: 'pending' | 'matched' | 'accepted' | 'completed' | 'cancelled';
+  matchedLawyerId?: ObjectId;
+  matchedLawyerProfileId?: ObjectId;
+  matchedAt?: Date;
+  consultationId?: ObjectId;
+  timeline: ITimelineEvent[];
+}
+
+// Conversation & Message 
+
+export interface IConversation extends BaseModel {
+  consultationId: ObjectId;
+  participantIds: ObjectId[];
+  citizenId: ObjectId;
+  lawyerId: ObjectId;
+  lastMessageAt?: Date;
+  lastMessagePreview?: string;
+  isArchivedByCitizen: boolean;
+  isArchivedByLawyer: boolean;
+}
+
+export interface IMessage extends BaseModel {
+  conversationId: ObjectId;
+  senderId: ObjectId;
+  senderRole: 'citizen' | 'lawyer';
+  body: string;
+  attachments?: { url: string; name: string; mimeType: string; sizeBytes: number }[];
+  isRead: boolean;
+  readAt?: Date;
+  isDeleted: boolean;
+}
+
+// Legal Content 
 
 export interface ILegalTopic extends BaseModel {
   slug: string;
@@ -167,8 +331,6 @@ export interface ILegalTopic extends BaseModel {
   isActive: boolean;
   sortOrder: number;
 }
-
-//  Legal Module 
 
 export interface IModuleLesson {
   _id?: ObjectId;
@@ -208,8 +370,6 @@ export interface ILegalModule extends BaseModel {
   xpReward: number;
 }
 
-//  Enrollment 
-
 export interface IEnrollment extends BaseModel {
   citizenId: ObjectId;
   moduleId: ObjectId;
@@ -221,13 +381,10 @@ export interface IEnrollment extends BaseModel {
   startedAt: Date;
   completedAt?: Date;
   lastActivityAt: Date;
-  lastReadLabel?: string;
   xpEarned: number;
   isSaved: boolean;
   ratingGiven?: number;
 }
-
-//  User Progress 
 
 export interface IUserProgress extends BaseModel {
   citizenId: ObjectId;
@@ -239,80 +396,6 @@ export interface IUserProgress extends BaseModel {
   completedAt?: Date;
   xpAwarded: number;
 }
-
-//  Consultation 
-
-export interface ITimelineEvent {
-  time: Date;
-  label: string;
-  note?: string;
-}
-
-export interface IConsultation extends BaseModel {
-  citizenId: ObjectId;
-  lawyerId: ObjectId;
-  lawyerProfileId: ObjectId;
-  mode: ConsultMode;
-  topic: string;
-  detail?: string;
-  status: ConsultStatus;
-  scheduledAt?: Date;
-  completedAt?: Date;
-  durationMins?: number;
-  feePaid: number;
-  isCharged: boolean;
-  receiptId?: string;
-  paymentRef?: string;
-  citizenRating?: number;
-  citizenReview?: string;
-  reviewedAt?: Date;
-  timeline: ITimelineEvent[];
-  declineReason?: string;
-  cancelledBy?: 'citizen' | 'lawyer' | 'system';
-}
-
-//  Lawyer Request 
-
-export interface ILawyerRequest extends BaseModel {
-  citizenId: ObjectId;
-  specialism: string;
-  urgency: string;
-  location?: string;
-  budget: string;
-  description: string;
-  status: 'pending' | 'matched' | 'accepted' | 'completed' | 'cancelled';
-  matchedLawyerId?: ObjectId;
-  matchedLawyerProfileId?: ObjectId;
-  matchedAt?: Date;
-  consultationId?: ObjectId;
-  timeline: ITimelineEvent[];
-}
-
-//  Conversation & Message 
-
-export interface IConversation extends BaseModel {
-  consultationId: ObjectId;
-  participantIds: ObjectId[];
-  citizenId: ObjectId;
-  lawyerId: ObjectId;
-  lastMessageAt?: Date;
-  lastMessagePreview?: string;
-  isArchivedByCitizen: boolean;
-  isArchivedByLawyer: boolean;
-}
-
-export interface IMessage extends BaseModel {
-  conversationId: ObjectId;
-  senderId: ObjectId;
-  senderRole: 'citizen' | 'lawyer';
-  body: string;
-  attachments?: { url: string; name: string; mimeType: string; sizeBytes: number }[];
-  isRead: boolean;
-  readAt?: Date;
-  isDeleted: boolean;
-}
-
-//  Legal Act & Bookmark 
 
 export interface ILegalActSection {
   _id?: ObjectId;
@@ -350,8 +433,6 @@ export interface IBookmark extends BaseModel {
   accentColor?: string;
 }
 
-//  Certificate 
-
 export interface ICertificate extends BaseModel {
   citizenId: ObjectId;
   moduleId: ObjectId;
@@ -364,8 +445,6 @@ export interface ICertificate extends BaseModel {
   instructorName?: string;
 }
 
-//  Daily Challenge 
-
 export interface IDailyChallenge extends BaseModel {
   question: string;
   options: string[];
@@ -376,8 +455,6 @@ export interface IDailyChallenge extends BaseModel {
   activeDate: Date;
   isActive: boolean;
 }
-
-//  Community Post 
 
 export interface ICommunityPost extends BaseModel {
   authorId: ObjectId;
@@ -394,8 +471,6 @@ export interface ICommunityPost extends BaseModel {
   authorColor?: string;
 }
 
-//  Lawyer Review 
-
 export interface ILawyerReview extends BaseModel {
   lawyerId: ObjectId;
   lawyerProfileId: ObjectId;
@@ -408,8 +483,6 @@ export interface ILawyerReview extends BaseModel {
   citizenColor?: string;
   isVisible: boolean;
 }
-
-//  Notification 
 
 export type NotificationType =
   | 'lawyer_response'
@@ -434,8 +507,6 @@ export interface INotification extends BaseModel {
   isRead: boolean;
   readAt?: Date;
 }
-
-//  Study Session 
 
 export interface IStudySession extends BaseModel {
   citizenId: ObjectId;

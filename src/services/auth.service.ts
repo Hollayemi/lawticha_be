@@ -1,42 +1,45 @@
 import crypto from 'crypto';
 import { Response } from 'express';
-import { UserModel, IUserDocument } from '../User.model';
+import { Types } from 'mongoose';
+import { IUserDocument, UserModel } from '../models/User.model';
+import { CitizenProfileModel } from '../models/CitizenProfile.model';
+import { LawyerProfileModel }  from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
-import { UserRole } from '../types';
+import { UserRole } from '../models/types';
 
 //  Cookie config 
 
-const COOKIE_OPTIONS = {
-  httpOnly: true,                                          // JS can't touch it
-  secure: process.env.NODE_ENV === 'production',           // HTTPS only in prod
+const BASE_COOKIE_OPTS = {
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
-  path: '/',
+  path:     '/',
 };
 
-const REFRESH_COOKIE_TTL_MS =
+const REFRESH_TTL_MS =
   Number(process.env.JWT_REFRESH_COOKIE_DAYS ?? 30) * 24 * 60 * 60 * 1000;
 
 //  sendTokenResponse 
-// Single function that signs both tokens, sets the refresh cookie, and returns
-// the standardised response shape. Called by register, signIn, refreshToken.
-
+/**
+ * Signs both tokens, sets the httpOnly refresh cookie, and returns the
+ * standardised JSON response. Used by: register, signIn, refreshToken,
+ * resetPassword, updatePassword.
+ */
 export function sendTokenResponse(
-  res: Response,
-  user: IUserDocument,
-  statusCode = 200,
-  message = 'Success'
+  res:        Response,
+  user:       IUserDocument,
+  statusCode: number = 200,
+  message:    string = 'Success'
 ): Response {
-  const accessToken  = user.getSignedJwtToken();
-  const refreshToken = user.getRefreshToken(); // also sets user.refreshToken
+  const accessToken  = user.signAccessToken();
+  const refreshToken = user.signRefreshToken(); // also mutates user.refreshToken
 
-  // Persist the stored refresh token (getRefreshToken mutated the doc)
-  // We call save() fire-and-forget — don't await in the response path
+  // Persist the stored refresh token (fire-and-forget — don't block response)
   user.save({ validateBeforeSave: false }).catch(console.error);
 
-  // httpOnly cookie for refresh token
   res.cookie('refreshToken', refreshToken, {
-    ...COOKIE_OPTIONS,
-    expires: new Date(Date.now() + REFRESH_COOKIE_TTL_MS),
+    ...BASE_COOKIE_OPTS,
+    expires: new Date(Date.now() + REFRESH_TTL_MS),
   });
 
   return res.status(statusCode).json({
@@ -53,49 +56,59 @@ export function sendTokenResponse(
 
 export function clearAuthCookies(res: Response): void {
   res.cookie('refreshToken', '', {
-    ...COOKIE_OPTIONS,
-    expires: new Date(0), // immediately expired
+    ...BASE_COOKIE_OPTS,
+    expires: new Date(0),
   });
 }
 
 //  hashToken 
-// Hash a raw token before comparing against the stored hash.
-
-export function hashToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken).digest('hex');
+/** Hash a raw token before comparing against the stored hash in DB */
+export function hashToken(raw: string): string {
+  return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
 //  findActiveUser 
-// Shared lookup used across multiple service calls.
 
-export async function findActiveUser(id: string): Promise<IUserDocument> {
+export async function findActiveUser(id: string | Types.ObjectId): Promise<IUserDocument> {
   const user = await UserModel.findById(id);
-  if (!user)       throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!user)          throw new AppError('User not found.', 404, 'NOT_FOUND');
   if (!user.isActive) throw new AppError('Your account has been deactivated.', 403, 'FORBIDDEN');
   return user;
 }
 
 //  createProfileAfterRegister 
-// After a new user is created, spin up their role-specific profile.
-// Imported lazily to avoid circular deps.
-
+/**
+ * After a new User is created, spin up their role-specific profile record.
+ *
+ * Citizen → CitizenProfile (XP, gamification, preferences)
+ * Lawyer  → LawyerProfile skeleton (verification status: pending)
+ *           The lawyer still needs to complete onboarding (NBA number, docs, etc.)
+ */
 export async function createProfileAfterRegister(user: IUserDocument): Promise<void> {
   if (user.role === UserRole.CITIZEN) {
-    const { CitizenProfileModel } = await import('../CitizenProfile.model');
     await CitizenProfileModel.create({ userId: user._id });
   }
 
   if (user.role === UserRole.LAWYER) {
-    // LawyerProfile can't be fully created here — they still need to submit
-    // their NBA number etc. via a separate onboarding flow.
-    // We create a skeleton record so the profile endpoint always resolves.
-    const { LawyerProfileModel } = await import('../LawyerProfile.model');
     await LawyerProfileModel.create({
       userId: user._id,
-      nbaNumber:   'PENDING',
-      yearOfCall:  0,
-      fees:        { message: 0, call: 0, video: 0 },
-      verificationStatus: 'pending',
+      fees:   { message: 0, call: 0, video: 0 },
+      // verificationStatus defaults to 'pending' in the schema
     });
   }
+}
+
+//  loadUserProfile 
+/**
+ * Load the role-specific profile for a user.
+ * Returns null when no profile is found (shouldn't happen post-registration).
+ */
+export async function loadUserProfile(user: IUserDocument) {
+  if (user.role === UserRole.CITIZEN) {
+    return CitizenProfileModel.findOne({ userId: user._id });
+  }
+  if (user.role === UserRole.LAWYER) {
+    return LawyerProfileModel.findOne({ userId: user._id });
+  }
+  return null;
 }

@@ -1,93 +1,177 @@
-import { Schema, model, models } from 'mongoose';
-import { ILawyerProfile, ConsultMode } from './types';
+import { Schema, model, models, Document, Types } from 'mongoose';
+import { ILawyerProfile, VerificationStatus, LawyerBadge, IVerificationDocument } from './types';
 
-/**
- * LAWYER PROFILE
- * Verified Nigerian lawyer record, linked 1-to-1 with User (role: lawyer).
- *
- * From marketplace/page.tsx → all lawyer card fields, fees, badges,
- *                             specialisms, location, availability
- * From MarketplaceSection   → name, role, location, rating, badges
- * From settings → NBA number, fees, response time
- *
- * Verification is a multi-step process tracked by verificationStatus.
- * Badges are computed/assigned by admin after assessment.
- */
+// Document interface 
+
+export interface ILawyerProfileDocument extends Omit<ILawyerProfile, '_id'>, Document {
+  _id: Types.ObjectId;
+
+  /**
+   * Submit the lawyer's verification application.
+   * Sets status → 'pending' and stamps the documents.
+   */
+  submitVerification(
+    data: {
+      nbaNumber: string;
+      yearOfCall: number;
+      calledAt: string;
+      specialisms?: string[];
+      documents?: IVerificationDocument[];
+    }
+  ): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Advance the verification to the next stage in the workflow:
+   * pending → credential_check → training → assessment → verified
+   * Throws if already verified or rejected.
+   */
+  advanceVerification(
+    adminId: Types.ObjectId,
+    note?: string
+  ): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Reject the verification with a reason.
+   * Sets status → 'rejected'.
+   */
+  rejectVerification(
+    adminId: Types.ObjectId,
+    reason: string
+  ): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Mark a specific document as verified (true) or failed (false).
+   */
+  verifyDocument(
+    documentId: Types.ObjectId,
+    verified: boolean
+  ): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Update the denormalised performance metrics in one call.
+   * Typically called after a consultation is reviewed.
+   */
+  updateMetrics(data: {
+    ratingAvg?: number;
+    reviewCount?: number;
+    consultationCount?: number;
+    responseTimeLabel?: string;
+  }): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Toggle availability. Returns the updated document.
+   */
+  setAvailability(available: boolean): Promise<ILawyerProfileDocument>;
+
+  /** Returns true when the lawyer has completed verification */
+  get isVerified(): boolean;
+}
+
+// Verification workflow order 
+
+const VERIFICATION_STAGES: VerificationStatus[] = [
+  VerificationStatus.PENDING,
+  VerificationStatus.CREDENTIAL_CHECK,
+  VerificationStatus.TRAINING,
+  VerificationStatus.ASSESSMENT,
+  VerificationStatus.VERIFIED,
+];
+
+// Sub-schemas 
 
 const FeeScheduleSchema = new Schema(
   {
-    message: { type: Number, required: true, min: 0 },
-    call:    { type: Number, required: true, min: 0 },
-    video:   { type: Number, required: true, min: 0 },
+    message: { type: Number, required: true, min: 0, default: 5000  },
+    call:    { type: Number, required: true, min: 0, default: 12000 },
+    video:   { type: Number, required: true, min: 0, default: 18000 },
   },
   { _id: false }
 );
 
-const LawyerProfileSchema = new Schema<ILawyerProfile>(
+const VerificationDocumentSchema = new Schema(
+  {
+    label:      { type: String, required: true },
+    filename:   { type: String, required: true },
+    fileUrl:    { type: String, required: true },
+    uploadedAt: { type: Date,   default: Date.now },
+    sizeBytes:  { type: Number, required: true },
+    verified:   { type: Boolean, default: null }, // null = pending review
+  },
+  { _id: true }
+);
+
+// Schema 
+
+const LawyerProfileSchema = new Schema<ILawyerProfileDocument>(
   {
     userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type:     Schema.Types.ObjectId,
+      ref:      'User',
       required: true,
-      unique: true,
-      index: true,
+      unique:   true,
+      index:    true,
     },
 
-    //  NBA & identity 
-    nbaNumber:   { type: String, required: true, unique: true, trim: true },
-    yearOfCall:  { type: Number, required: true },
-    title:       { type: String, trim: true }, // "Employment & Labour Lawyer"
-    bio:         { type: String, maxlength: 1000 },
-    initials:    { type: String, maxlength: 4 },  // "AO" for display avatar
-
-    //  Practice areas (slugs map to SPECIALISMS list) 
+    // Professional identity 
+    nbaNumber:  { type: String, sparse: true, trim: true },
+    yearOfCall: { type: Number, min: 0 },
+    calledAt:   { type: String },           // "2019"
+    title:      { type: String, trim: true },
+    bio:        { type: String, maxlength: 1000 },
     specialisms: [{ type: String, index: true }],
-    // e.g. ['criminal', 'employment', 'property', 'family', 'business', 'consumer', 'road']
+    languages:   { type: [String], default: ['English'] },
 
-    //  Location 
-    location:  { type: String, trim: true },  // "Victoria Island"
-    state:     { type: String, trim: true },  // "Lagos"
-    stateCode: { type: String, trim: true },  // "lagos"
+    // Location 
+    location:  { type: String, trim: true },
+    state:     { type: String, trim: true },
+    stateCode: { type: String, trim: true },
 
-    //  Languages 
-    languages: [{ type: String }], // ['English', 'Igbo', 'Yoruba']
-
-    //  Verification workflow 
+    // Verification (embedded) 
     verificationStatus: {
-      type: String,
-      enum: ['pending', 'credential_check', 'training', 'assessment', 'verified', 'rejected'],
-      default: 'pending',
-      index: true,
+      type:    String,
+      enum:    Object.values(VerificationStatus),
+      default: VerificationStatus.PENDING,
+      index:   true,
     },
     verificationRejectedReason: { type: String },
-    verifiedAt: { type: Date },
+    verifiedAt:                 { type: Date },
+    verificationDocuments:      { type: [VerificationDocumentSchema], default: [] },
+    verificationAdminNote:      { type: String },
+    verificationReviewedBy: {
+      type: Schema.Types.ObjectId,
+      ref:  'AdminUser',
+    },
+    verificationReviewedAt: { type: Date },
 
-    //  Badges (assigned by admin / auto-computed) 
-    badges: [{
-      type: String,
-      enum: ['Verified Lawyer', 'Top Rated', 'Responsive'],
-    }],
+    // Badges 
+    badges: {
+      type: [String],
+      enum: Object.values(LawyerBadge),
+      default: [],
+    },
 
-    //  Availability 
-    isAvailable:  { type: Boolean, default: false, index: true },
+    // Availability & fees 
+    isAvailable: { type: Boolean, default: false, index: true },
+    fees: {
+      type:     FeeScheduleSchema,
+      required: true,
+      default:  () => ({ message: 5000, call: 12000, video: 18000 }),
+    },
 
-    //  Fees 
-    fees: { type: FeeScheduleSchema, required: true },
-
-    //  Performance metrics (denormalised for fast card rendering) 
+    // Performance metrics (denormalised) 
     ratingAvg:         { type: Number, default: 0, min: 0, max: 5 },
-    reviewCount:       { type: Number, default: 0 },
-    consultationCount: { type: Number, default: 0 },
-    responseTimeLabel: { type: String, default: 'Under 24 hours' }, // "Under 1 hour"
+    reviewCount:       { type: Number, default: 0, min: 0 },
+    consultationCount: { type: Number, default: 0, min: 0 },
+    responseTimeLabel: { type: String, default: 'Under 24 hours' },
 
-    //  Subscription / platform tier 
+    // Platform 
     subscriptionTier: {
-      type: String,
-      enum: ['basic', 'pro'],
+      type:    String,
+      enum:    ['basic', 'pro'],
       default: 'basic',
     },
 
-    //  Color for UI avatar (hex pair stored for consistent card rendering) 
+    // UI avatar colours 
     colorA: { type: String, default: '#1E3A5F' },
     colorB: { type: String, default: '#2D5A8E' },
   },
@@ -97,9 +181,143 @@ const LawyerProfileSchema = new Schema<ILawyerProfile>(
   }
 );
 
+// Indexes 
+
 LawyerProfileSchema.index({ specialisms: 1, state: 1 });
 LawyerProfileSchema.index({ verificationStatus: 1, isAvailable: 1 });
 LawyerProfileSchema.index({ ratingAvg: -1 });
 
+// Virtual: isVerified 
+
+LawyerProfileSchema.virtual('isVerified').get(function (
+  this: ILawyerProfileDocument
+): boolean {
+  return this.verificationStatus === VerificationStatus.VERIFIED;
+});
+
+// Instance method: submitVerification 
+
+LawyerProfileSchema.methods.submitVerification = async function (
+  this: ILawyerProfileDocument,
+  data: {
+    nbaNumber: string;
+    yearOfCall: number;
+    calledAt: string;
+    specialisms?: string[];
+    documents?: IVerificationDocument[];
+  }
+): Promise<ILawyerProfileDocument> {
+  this.nbaNumber   = data.nbaNumber;
+  this.yearOfCall  = data.yearOfCall;
+  this.calledAt    = data.calledAt;
+  if (data.specialisms) this.specialisms = data.specialisms;
+  if (data.documents)   this.verificationDocuments = data.documents as any;
+
+  this.verificationStatus             = VerificationStatus.PENDING;
+  this.verificationRejectedReason     = undefined;
+  this.verifiedAt                     = undefined;
+  this.verificationReviewedBy         = undefined;
+  this.verificationReviewedAt         = undefined;
+
+  return this.save();
+};
+
+// Instance method: advanceVerification 
+
+LawyerProfileSchema.methods.advanceVerification = async function (
+  this: ILawyerProfileDocument,
+  adminId: Types.ObjectId,
+  note?: string
+): Promise<ILawyerProfileDocument> {
+  const currentIdx = VERIFICATION_STAGES.indexOf(this.verificationStatus);
+
+  if (currentIdx === -1 || this.verificationStatus === VerificationStatus.REJECTED) {
+    throw new Error('Cannot advance a rejected verification');
+  }
+  if (this.verificationStatus === VerificationStatus.VERIFIED) {
+    throw new Error('Lawyer is already verified');
+  }
+
+  const next = VERIFICATION_STAGES[currentIdx + 1];
+  this.verificationStatus       = next;
+  this.verificationReviewedBy   = adminId;
+  this.verificationReviewedAt   = new Date();
+  if (note) this.verificationAdminNote = note;
+
+  if (next === VerificationStatus.VERIFIED) {
+    this.verifiedAt = new Date();
+    // Auto-assign Verified Lawyer badge
+    if (!this.badges.includes(LawyerBadge.VERIFIED)) {
+      this.badges.push(LawyerBadge.VERIFIED);
+    }
+  }
+
+  return this.save();
+};
+
+// Instance method: rejectVerification 
+
+LawyerProfileSchema.methods.rejectVerification = async function (
+  this: ILawyerProfileDocument,
+  adminId: Types.ObjectId,
+  reason: string
+): Promise<ILawyerProfileDocument> {
+  this.verificationStatus           = VerificationStatus.REJECTED;
+  this.verificationRejectedReason   = reason;
+  this.verificationReviewedBy       = adminId;
+  this.verificationReviewedAt       = new Date();
+  this.isAvailable                  = false;
+  return this.save();
+};
+
+// Instance method: verifyDocument 
+
+LawyerProfileSchema.methods.verifyDocument = async function (
+  this: ILawyerProfileDocument,
+  documentId: Types.ObjectId,
+  verified: boolean
+): Promise<ILawyerProfileDocument> {
+  const doc = (this.verificationDocuments as any).id(documentId);
+  if (!doc) throw new Error('Document not found on this profile');
+
+  doc.verified = verified;
+  return this.save();
+};
+
+// Instance method: updateMetrics 
+
+LawyerProfileSchema.methods.updateMetrics = async function (
+  this: ILawyerProfileDocument,
+  data: {
+    ratingAvg?: number;
+    reviewCount?: number;
+    consultationCount?: number;
+    responseTimeLabel?: string;
+  }
+): Promise<ILawyerProfileDocument> {
+  if (data.ratingAvg         !== undefined) this.ratingAvg         = data.ratingAvg;
+  if (data.reviewCount       !== undefined) this.reviewCount       = data.reviewCount;
+  if (data.consultationCount !== undefined) this.consultationCount = data.consultationCount;
+  if (data.responseTimeLabel !== undefined) this.responseTimeLabel = data.responseTimeLabel;
+  return this.save();
+};
+
+// Instance method: setAvailability 
+
+LawyerProfileSchema.methods.setAvailability = async function (
+  this: ILawyerProfileDocument,
+  available: boolean
+): Promise<ILawyerProfileDocument> {
+  // Can only go available if verified
+  if (available && this.verificationStatus !== VerificationStatus.VERIFIED) {
+    throw new Error('Only verified lawyers can set themselves as available');
+  }
+  this.isAvailable = available;
+  return this.save();
+};
+
+// Export 
+
 export const LawyerProfileModel =
-  models.LawyerProfile || model<ILawyerProfile>('LawyerProfile', LawyerProfileSchema);
+  models.LawyerProfile ||
+  model<ILawyerProfileDocument>('LawyerProfile', LawyerProfileSchema);

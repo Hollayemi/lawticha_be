@@ -1,51 +1,276 @@
-import { FilterQuery, SortOrder } from 'mongoose';
-import { LawyerModel } from '../models/Lawyer.model';
+import { Types } from 'mongoose';
+import { LawyerProfileModel, ILawyerProfileDocument } from '../models/LawyerProfile.model';
+import { UserModel } from '../models/User.model';
 import { AuditLogModel } from '../models/Admin.model';
-import { ILawyer, LawyerStatus, AuditAction } from '../models/types/lawticha.types';
+import { AuditAction, VerificationStatus, IVerificationDocument } from '../models/types';
 import { AppError } from '../middleware/error';
 
-// Helpers 
+//  Types 
 
 interface AdminCtx {
-  adminId: string;
+  adminId:   string;
   adminName: string;
 }
 
-//  List lawyers 
-
-export interface ListLawyersParams {
-  status?: string;
-  search?: string;
-  page?: number;
-  pageSize?: number;
+export interface SubmitVerificationInput {
+  nbaNumber:   string;
+  yearOfCall:  number;
+  calledAt:    string;
+  specialisms?: string[];
+  title?:       string;
+  bio?:         string;
+  location?:    string;
+  state?:       string;
+  stateCode?:   string;
+  languages?:   string[];
+  fees?: {
+    message: number;
+    call:    number;
+    video:   number;
+  };
+  documents?: IVerificationDocument[];
 }
 
-export async function listLawyers(params: ListLawyersParams) {
-  const { status = 'all', search, page = 1, pageSize = 20 } = params;
+export interface UpdateLawyerProfileInput {
+  title?:      string;
+  bio?:        string;
+  specialisms?: string[];
+  languages?:   string[];
+  location?:    string;
+  state?:       string;
+  stateCode?:   string;
+  fees?: {
+    message?: number;
+    call?:    number;
+    video?:   number;
+  };
+}
 
-  const filter: FilterQuery<ILawyer> = { removedAt: null };
+//  Get lawyer profile (with user) 
 
-  if (status !== 'all' && Object.values(LawyerStatus).includes(status as LawyerStatus)) {
-    filter.status = status;
+export async function getLawyerProfile(userId: string) {
+  const [user, profile] = await Promise.all([
+    UserModel.findById(userId),
+    LawyerProfileModel.findOne({ userId }),
+  ]);
+
+  if (!user)    throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  return { user: user.toSafeObject(), profile };
+}
+
+//  Submit / resubmit verification 
+
+export async function submitVerification(
+  userId: string,
+  input:  SubmitVerificationInput
+) {
+  const profile = await LawyerProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  // Block resubmission if already in progress beyond credential_check
+  const blocked: VerificationStatus[] = [
+    VerificationStatus.TRAINING,
+    VerificationStatus.ASSESSMENT,
+    VerificationStatus.VERIFIED,
+  ];
+  if (blocked.includes(profile.verificationStatus)) {
+    throw new AppError(
+      'Your verification is already in progress and cannot be resubmitted at this stage.',
+      400,
+      'VERIFICATION_IN_PROGRESS'
+    );
   }
 
-  if (search?.trim()) {
-    filter.$text = { $search: search.trim() };
+  // Apply optional profile fields before submitting
+  if (input.title)     profile.title     = input.title;
+  if (input.bio)       profile.bio       = input.bio;
+  if (input.location)  profile.location  = input.location;
+  if (input.state)     profile.state     = input.state;
+  if (input.stateCode) profile.stateCode = input.stateCode;
+  if (input.languages) profile.languages = input.languages;
+  if (input.fees) {
+    profile.fees.message = input.fees.message ?? profile.fees.message;
+    profile.fees.call    = input.fees.call    ?? profile.fees.call;
+    profile.fees.video   = input.fees.video   ?? profile.fees.video;
   }
+
+  await profile.submitVerification({
+    nbaNumber:   input.nbaNumber,
+    yearOfCall:  input.yearOfCall,
+    calledAt:    input.calledAt,
+    specialisms: input.specialisms,
+    documents:   input.documents,
+  });
+
+  return { message: 'Verification submitted successfully.', profile };
+}
+
+//  Update lawyer profile (non-verification fields) 
+
+export async function updateLawyerProfile(
+  userId: string,
+  input:  UpdateLawyerProfileInput
+): Promise<ILawyerProfileDocument> {
+  const profile = await LawyerProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  if (input.title      !== undefined) profile.title      = input.title;
+  if (input.bio        !== undefined) profile.bio        = input.bio;
+  if (input.specialisms !== undefined) profile.specialisms = input.specialisms;
+  if (input.languages  !== undefined) profile.languages  = input.languages;
+  if (input.location   !== undefined) profile.location   = input.location;
+  if (input.state      !== undefined) profile.state      = input.state;
+  if (input.stateCode  !== undefined) profile.stateCode  = input.stateCode;
+
+  if (input.fees) {
+    if (input.fees.message !== undefined) profile.fees.message = input.fees.message;
+    if (input.fees.call    !== undefined) profile.fees.call    = input.fees.call;
+    if (input.fees.video   !== undefined) profile.fees.video   = input.fees.video;
+  }
+
+  return profile.save();
+}
+
+//  Toggle availability 
+
+export async function toggleAvailability(
+  userId:    string,
+  available: boolean
+): Promise<ILawyerProfileDocument> {
+  const profile = await LawyerProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+  return profile.setAvailability(available);
+}
+
+//  Admin: advance verification 
+
+export async function advanceVerification(
+  profileId: string,
+  admin:     AdminCtx,
+  note?:     string
+) {
+  const profile = await LawyerProfileModel.findById(profileId);
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  const prevStatus = profile.verificationStatus;
+  await profile.advanceVerification(new Types.ObjectId(admin.adminId), note);
+
+  AuditLogModel.create({
+    adminId:    admin.adminId,
+    adminName:  admin.adminName,
+    action:     profile.verificationStatus === VerificationStatus.VERIFIED
+      ? AuditAction.VERIFICATION_APPROVED
+      : AuditAction.VERIFICATION_INFO_REQUEST,
+    targetType: 'verification',
+    targetId:   profile._id,
+    meta:       { from: prevStatus, to: profile.verificationStatus, note },
+  }).catch(() => null);
+
+  return { message: `Verification advanced to ${profile.verificationStatus}`, profile };
+}
+
+//  Admin: reject verification 
+
+export async function rejectVerification(
+  profileId: string,
+  admin:     AdminCtx,
+  reason:    string
+) {
+  const profile = await LawyerProfileModel.findById(profileId);
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  await profile.rejectVerification(new Types.ObjectId(admin.adminId), reason);
+
+  AuditLogModel.create({
+    adminId:    admin.adminId,
+    adminName:  admin.adminName,
+    action:     AuditAction.VERIFICATION_REJECTED,
+    targetType: 'verification',
+    targetId:   profile._id,
+    meta:       { reason },
+  }).catch(() => null);
+
+  return { message: 'Verification rejected.', profile };
+}
+
+//  Admin: verify a document 
+
+export async function verifyDocument(
+  profileId:  string,
+  documentId: string,
+  verified:   boolean,
+  admin:      AdminCtx
+) {
+  const profile = await LawyerProfileModel.findById(profileId);
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  await profile.verifyDocument(new Types.ObjectId(documentId), verified);
+
+  AuditLogModel.create({
+    adminId:    admin.adminId,
+    adminName:  admin.adminName,
+    action:     AuditAction.DOCUMENT_VERIFIED,
+    targetType: 'document',
+    targetId:   documentId,
+    meta:       { profileId, verified },
+  }).catch(() => null);
+
+  return { message: `Document marked as ${verified ? 'verified' : 'failed'}.` };
+}
+
+//  List lawyers (admin) 
+
+export interface ListLawyersParams {
+  verificationStatus?: string;
+  search?:    string;
+  page?:      number;
+  pageSize?:  number;
+  isAvailable?: boolean;
+}
+
+export async function listLawyers(params: ListLawyersParams = {}) {
+  const {
+    verificationStatus,
+    search,
+    page     = 1,
+    pageSize = 20,
+    isAvailable,
+  } = params;
+
+  const filter: Record<string, unknown> = {};
+
+  if (verificationStatus && Object.values(VerificationStatus).includes(verificationStatus as VerificationStatus)) {
+    filter.verificationStatus = verificationStatus;
+  }
+  if (isAvailable !== undefined) filter.isAvailable = isAvailable;
 
   const skip = (page - 1) * pageSize;
 
-  const [lawyers, total] = await Promise.all([
-    LawyerModel.find(filter)
+  // For text search, we search the User collection and then join
+  let userIds: Types.ObjectId[] | undefined;
+  if (search?.trim()) {
+    const users = await UserModel.find(
+      { $text: { $search: search.trim() }, role: 'lawyer' },
+      { _id: 1 }
+    );
+    userIds = users.map((u) => u._id as Types.ObjectId);
+    if (userIds.length) filter.userId = { $in: userIds };
+    else return { data: [], total: 0, page, pageSize, totalPages: 0 };
+  }
+
+  const [profiles, total] = await Promise.all([
+    LawyerProfileModel.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageSize)
-      .select('-passwordHash -googleId'),
-    LawyerModel.countDocuments(filter),
+      .populate('userId', 'firstName lastName email avatarUrl isActive lastLoginAt'),
+    LawyerProfileModel.countDocuments(filter),
   ]);
 
   return {
-    data: lawyers.map(formatLawyerList),
+    data: profiles,
     total,
     page,
     pageSize,
@@ -53,156 +278,81 @@ export async function listLawyers(params: ListLawyersParams) {
   };
 }
 
-//  Get single lawyer 
+//  Get single lawyer profile (admin) 
 
-export async function getLawyerById(id: string) {
-  const lawyer = await LawyerModel.findOne({ _id: id, removedAt: null }).select(
-    '-passwordHash -googleId'
+export async function getLawyerById(profileId: string) {
+  const profile = await LawyerProfileModel.findById(profileId).populate(
+    'userId',
+    'firstName lastName email avatarUrl isActive lastLoginAt createdAt'
   );
-  if (!lawyer) throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
-  return { data: formatLawyerFull(lawyer) };
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+  return profile;
 }
 
-//  Update lawyer status 
+//  Admin: update lawyer status (active / inactive) 
+// Note: actual verification is handled by advanceVerification / rejectVerification.
+// This is for admin suspend / reactivate.
 
 export async function updateLawyerStatus(
-  id: string,
-  status: LawyerStatus,
-  reason: string,
-  admin: AdminCtx
+  profileId: string,
+  action:    'suspend' | 'reactivate',
+  reason:    string,
+  admin:     AdminCtx
 ) {
-  if (!Object.values(LawyerStatus).includes(status)) {
-    throw new AppError(
-      `Invalid status. Must be one of: ${Object.values(LawyerStatus).join(', ')}`,
-      400,
-      'VALIDATION_ERROR'
-    );
+  const profile = await LawyerProfileModel.findById(profileId).populate<{
+    userId: InstanceType<typeof UserModel>
+  }>('userId');
+  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
+
+  const user = await UserModel.findById(profile.userId);
+  if (!user)  throw new AppError('Associated user not found.', 404, 'NOT_FOUND');
+
+  if (action === 'suspend') {
+    user.isActive        = false;
+    profile.isAvailable  = false;
+  } else {
+    user.isActive = true;
   }
 
-  const lawyer = await LawyerModel.findOne({ _id: id, removedAt: null });
-  if (!lawyer) throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
-
-  lawyer.status = status;
-  // When suspended, mark as unavailable
-  if (status === LawyerStatus.INACTIVE) lawyer.available = false;
-  await lawyer.save();
+  await Promise.all([user.save({ validateBeforeSave: false }), profile.save()]);
 
   AuditLogModel.create({
     adminId:    admin.adminId,
     adminName:  admin.adminName,
     action:     AuditAction.LAWYER_STATUS_CHANGED,
     targetType: 'lawyer',
-    targetId:   lawyer._id,
-    meta:       { status, reason },
+    targetId:   profile._id,
+    meta:       { action, reason },
   }).catch(() => null);
 
-  return {
-    success: true,
-    message: 'Lawyer status updated',
-    data: { id: String(lawyer._id), status: lawyer.status },
-  };
+  return { message: `Lawyer ${action === 'suspend' ? 'suspended' : 'reactivated'}.` };
 }
 
-//  Send email to lawyer (stub) 
-
-export async function emailLawyer(
-  id: string,
-  subject: string,
-  body: string,
-  admin: AdminCtx
-) {
-  const lawyer = await LawyerModel.findOne({ _id: id, removedAt: null });
-  if (!lawyer) throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
-
-  // --- Production: call email provider here ---
-  // await sendEmail({ to: lawyer.email, subject, html: body });
-  console.log(`[EMAIL] To: ${lawyer.email} | Subject: ${subject}`);
-
-  AuditLogModel.create({
-    adminId:    admin.adminId,
-    adminName:  admin.adminName,
-    action:     AuditAction.LAWYER_EMAIL_SENT,
-    targetType: 'lawyer',
-    targetId:   lawyer._id,
-    meta:       { subject },
-  }).catch(() => null);
-
-  return { success: true, message: 'Email sent successfully' };
-}
-
-//  Dashboard stats (lawyers slice) 
+//  Dashboard stats 
 
 export async function getLawyerStats() {
-  const [total, active, inactive, pending] = await Promise.all([
-    LawyerModel.countDocuments({ removedAt: null }),
-    LawyerModel.countDocuments({ status: LawyerStatus.ACTIVE,   removedAt: null }),
-    LawyerModel.countDocuments({ status: LawyerStatus.INACTIVE, removedAt: null }),
-    LawyerModel.countDocuments({ status: LawyerStatus.PENDING,  removedAt: null }),
+  const statuses = Object.values(VerificationStatus);
+
+  const counts = await LawyerProfileModel.aggregate([
+    { $group: { _id: '$verificationStatus', count: { $sum: 1 } } },
   ]);
 
-  // Average rating (only lawyers with at least one review)
-  const ratingAgg = await LawyerModel.aggregate([
-    { $match: { removedAt: null, reviewCount: { $gt: 0 } } },
-    { $group: { _id: null, avg: { $avg: '$rating' } } },
+  const byStatus: Record<string, number> = {};
+  for (const s of statuses) byStatus[s] = 0;
+  for (const { _id, count } of counts) byStatus[_id] = count;
+
+  const ratingAgg = await LawyerProfileModel.aggregate([
+    { $match: { reviewCount: { $gt: 0 } } },
+    { $group: { _id: null, avg: { $avg: '$ratingAvg' } } },
   ]);
-  const avgRating = ratingAgg[0]?.avg ? Number(ratingAgg[0].avg.toFixed(1)) : 0;
+
+  const avgRating = ratingAgg[0]?.avg
+    ? Number(ratingAgg[0].avg.toFixed(1))
+    : 0;
 
   return {
-    totalLawyers:         total,
-    activeLawyers:        active,
-    inactiveLawyers:      inactive,
-    pendingVerifications: pending,
+    total:    Object.values(byStatus).reduce((a, b) => a + b, 0),
+    byStatus,
     avgRating,
-  };
-}
-
-//  Formatters 
-
-function responseTimeLabel(minutes: number): string {
-  if (minutes < 60) return `< ${minutes} min`;
-  const h = Math.ceil(minutes / 60);
-  return `< ${h} hr${h > 1 ? 's' : ''}`;
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-type LawyerDoc = ILawyer & { _id: any };
-
-function formatLawyerList(l: LawyerDoc) {
-  return {
-    id:           String(l._id),
-    name:         l.name,
-    initials:     initials(l.name),
-    color:        l.color,
-    email:        l.email,
-    phone:        l.phone,
-    state:        l.state,
-    specialisms:  l.specialisms,
-    nbaNumber:    l.nbaNumber,
-    yearsCall:    l.yearsCall,
-    joinedAt:     (l as any).createdAt,
-    status:       l.status,
-    rating:       l.rating,
-    reviewCount:  l.reviewCount,
-    consultations: l.consultations,
-    responseTime: responseTimeLabel(l.responseTimeMinutes),
-    badges:       l.badges,
-    lastActive:   l.lastActiveAt,
-    available:    l.available,
-  };
-}
-
-function formatLawyerFull(l: LawyerDoc) {
-  return {
-    ...formatLawyerList(l),
-    bio:       l.bio,
-    languages: l.languages,
-    fee:       l.fee,
   };
 }

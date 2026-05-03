@@ -1,195 +1,272 @@
-import { FilterQuery, SortOrder } from 'mongoose';
-import { CitizenModel } from '../models/Citizen.model';
+import { CitizenProfileModel, ICitizenProfileDocument } from '../models/CitizenProfile.model';
+import { UserModel } from '../models/User.model';
 import { AuditLogModel } from '../models/Admin.model';
-import { ICitizen, CitizenStatus, AuditAction } from '../models/types/lawticha.types';
+import { AuditAction } from '../models/types';
 import { AppError } from '../middleware/error';
 
-//  Helpers 
-
-const ALLOWED_SORT_FIELDS: Record<string, string> = {
-  joinedAt:   'createdAt',
-  name:       'name',
-  topicsRead: 'topicsRead',
-  lastActive: 'lastActiveAt',
-};
+//  Types 
 
 interface AdminCtx {
-  adminId: string;
+  adminId:   string;
   adminName: string;
 }
 
-//  List citizens 
-
-export interface ListCitizensParams {
-  status?: string;
-  search?: string;
-  page?: number;
-  pageSize?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+export interface UpdateCitizenProfileInput {
+  phone?:              string;
+  stateCode?:          string;
+  bio?:                string;
+  preferredLanguage?:  string;
+  jurisdictionCode?:   string;
+  legalInterestAreas?: string[];
+  // Appearance
+  theme?:         'light' | 'dark' | 'system';
+  fontSize?:      'small' | 'medium' | 'large';
+  accentColor?:   string;
+  reducedMotion?: boolean;
+  highContrast?:  boolean;
+  dyslexicFont?:  boolean;
 }
 
-export async function listCitizens(params: ListCitizensParams) {
-  const {
-    status = 'all',
-    search,
-    page = 1,
-    pageSize = 20,
-    sortBy = 'joinedAt',
-    sortOrder = 'desc',
-  } = params;
+export interface UpdateNotificationsInput {
+  notifEmail?:          boolean;
+  notifSms?:            boolean;
+  notifPush?:           boolean;
+  notifInAppBadge?:     boolean;
+  notifLawyerResponse?: boolean;
+  notifConsultReminder?:boolean;
+  notifMatchAlert?:     boolean;
+  notifMessages?:       boolean;
+  notifReviewReminder?: boolean;
+  notifWeeklyDigest?:   boolean;
+  notifStreakReminder?:  boolean;
+  notifPlatformUpdates?:boolean;
+  notifLegalNews?:      boolean;
+  notifPromotional?:    boolean;
+}
 
-  const filter: FilterQuery<ICitizen> = { removedAt: null };
+export interface UpdatePrivacyInput {
+  showActivityPublic?:      boolean;
+  allowAnonymousAnalytics?: boolean;
+  personalizedRecommend?:   boolean;
+  showProfileInCommunity?:  boolean;
+}
 
-  if (status !== 'all' && Object.values(CitizenStatus).includes(status as CitizenStatus)) {
-    filter.status = status;
+//  Get citizen profile 
+
+export async function getCitizenProfile(userId: string) {
+  const [user, profile] = await Promise.all([
+    UserModel.findById(userId),
+    CitizenProfileModel.findOne({ userId }),
+  ]);
+
+  if (!user)    throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+
+  return { user: user.toSafeObject(), profile };
+}
+
+//  Update citizen profile 
+
+export async function updateCitizenProfile(
+  userId: string,
+  input:  UpdateCitizenProfileInput
+): Promise<ICitizenProfileDocument> {
+  const profile = await CitizenProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+
+  const FIELDS = [
+    'phone', 'stateCode', 'bio', 'preferredLanguage', 'jurisdictionCode',
+    'legalInterestAreas', 'theme', 'fontSize', 'accentColor',
+    'reducedMotion', 'highContrast', 'dyslexicFont',
+  ] as const;
+
+  for (const key of FIELDS) {
+    if (input[key] !== undefined) {
+      (profile as any)[key] = input[key];
+    }
   }
 
-  if (search?.trim()) {
-    filter.$text = { $search: search.trim() };
+  return profile.save();
+}
+
+//  Update notification preferences 
+
+export async function updateNotifications(
+  userId: string,
+  input:  UpdateNotificationsInput
+): Promise<ICitizenProfileDocument> {
+  const profile = await CitizenProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+
+  const FIELDS = [
+    'notifEmail', 'notifSms', 'notifPush', 'notifInAppBadge',
+    'notifLawyerResponse', 'notifConsultReminder', 'notifMatchAlert',
+    'notifMessages', 'notifReviewReminder', 'notifWeeklyDigest',
+    'notifStreakReminder', 'notifPlatformUpdates', 'notifLegalNews', 'notifPromotional',
+  ] as const;
+
+  for (const key of FIELDS) {
+    if (input[key] !== undefined) {
+      (profile as any)[key] = input[key];
+    }
   }
 
-  const sortField = ALLOWED_SORT_FIELDS[sortBy] ?? 'createdAt';
-  const sort: Record<string, SortOrder> = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+  return profile.save();
+}
+
+//  Update privacy settings 
+
+export async function updatePrivacy(
+  userId: string,
+  input:  UpdatePrivacyInput
+): Promise<ICitizenProfileDocument> {
+  const profile = await CitizenProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+
+  if (input.showActivityPublic      !== undefined) profile.showActivityPublic      = input.showActivityPublic;
+  if (input.allowAnonymousAnalytics !== undefined) profile.allowAnonymousAnalytics = input.allowAnonymousAnalytics;
+  if (input.personalizedRecommend   !== undefined) profile.personalizedRecommend   = input.personalizedRecommend;
+  if (input.showProfileInCommunity  !== undefined) profile.showProfileInCommunity  = input.showProfileInCommunity;
+
+  return profile.save();
+}
+
+//  Award XP (via service — preferred over calling user.awardXP directly) 
+
+export async function awardXP(
+  userId: string,
+  points: number,
+  reason?: string
+): Promise<ICitizenProfileDocument> {
+  const profile = await CitizenProfileModel.findOne({ userId });
+  if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+
+  await profile.addXP(points);
+  await profile.markActivity();
+
+  return profile;
+}
+
+//  List citizens (admin) 
+
+export interface ListCitizensParams {
+  search?:   string;
+  page?:     number;
+  pageSize?: number;
+  isActive?: boolean;
+}
+
+export async function listCitizens(params: ListCitizensParams = {}) {
+  const { search, page = 1, pageSize = 20, isActive } = params;
+
+  const userFilter: Record<string, unknown> = { role: 'citizen' };
+  if (isActive !== undefined) userFilter.isActive = isActive;
+  if (search?.trim()) userFilter.$text = { $search: search.trim() };
 
   const skip = (page - 1) * pageSize;
 
-  const [citizens, total] = await Promise.all([
-    CitizenModel.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(pageSize)
-      .select('-passwordHash -googleId'),
-    CitizenModel.countDocuments(filter),
+  const [users, total] = await Promise.all([
+    UserModel.find(userFilter).sort({ createdAt: -1 }).skip(skip).limit(pageSize),
+    UserModel.countDocuments(userFilter),
   ]);
 
-  return {
-    data: citizens.map(formatCitizenList),
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
+  const userIds = users.map((u) => u._id);
+  const profiles = await CitizenProfileModel.find({ userId: { $in: userIds } });
+  const profileMap = new Map(profiles.map((p) => [p.userId.toString(), p]));
+
+  const data = users.map((u) => ({
+    user:    u.toSafeObject(),
+    profile: profileMap.get((u._id as any).toString()) ?? null,
+  }));
+
+  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
-//  Get single citizen 
+//  Get citizen by id (admin) 
 
-export async function getCitizenById(id: string) {
-  const citizen = await CitizenModel.findOne({ _id: id, removedAt: null }).select(
-    '-passwordHash -googleId'
-  );
-  if (!citizen) throw new AppError('Citizen not found', 404, 'NOT_FOUND');
-  return { data: formatCitizenFull(citizen) };
+export async function getCitizenById(userId: string) {
+  const [user, profile] = await Promise.all([
+    UserModel.findOne({ _id: userId, role: 'citizen' }),
+    CitizenProfileModel.findOne({ userId }),
+  ]);
+  if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
+  return { user: user.toSafeObject(), profile };
 }
 
-//  Update citizen status 
+//  Admin: suspend / reactivate citizen 
 
 export async function updateCitizenStatus(
-  id: string,
-  status: CitizenStatus,
+  userId: string,
+  action: 'suspend' | 'reactivate',
   reason: string,
-  admin: AdminCtx
+  admin:  AdminCtx
 ) {
-  if (!Object.values(CitizenStatus).includes(status)) {
-    throw new AppError(`Invalid status. Must be one of: ${Object.values(CitizenStatus).join(', ')}`, 400, 'VALIDATION_ERROR');
-  }
+  const user = await UserModel.findOne({ _id: userId, role: 'citizen' });
+  if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
 
-  const citizen = await CitizenModel.findOne({ _id: id, removedAt: null });
-  if (!citizen) throw new AppError('Citizen not found', 404, 'NOT_FOUND');
+  user.isActive = action === 'reactivate';
+  await user.save({ validateBeforeSave: false });
 
-  citizen.status = status;
-  await citizen.save();
-
-  // Audit log (fire-and-forget)
   AuditLogModel.create({
     adminId:    admin.adminId,
     adminName:  admin.adminName,
     action:     AuditAction.CITIZEN_STATUS_CHANGED,
     targetType: 'citizen',
-    targetId:   citizen._id,
-    meta:       { status, reason },
+    targetId:   user._id,
+    meta:       { action, reason },
   }).catch(() => null);
 
   return {
-    success: true,
-    message: 'Citizen status updated',
-    data: { id: citizen._id, status: citizen.status },
+    message: `Citizen ${action === 'suspend' ? 'suspended' : 'reactivated'}.`,
+    userId,
+    isActive: user.isActive,
   };
 }
 
-//  Send email to citizen (stub — wire up nodemailer/SendGrid) 
+//  Admin: send email to citizen (stub) 
 
 export async function emailCitizen(
-  id: string,
+  userId:  string,
   subject: string,
-  body: string,
-  admin: AdminCtx
+  body:    string,
+  admin:   AdminCtx
 ) {
-  const citizen = await CitizenModel.findOne({ _id: id, removedAt: null });
-  if (!citizen) throw new AppError('Citizen not found', 404, 'NOT_FOUND');
+  const user = await UserModel.findOne({ _id: userId, role: 'citizen' });
+  if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
 
-  // --- Production: call email provider here ---
-  // await sendEmail({ to: citizen.email, subject, html: body });
-  console.log(`[EMAIL] To: ${citizen.email} | Subject: ${subject}`);
+  // TODO: wire up email provider (SendGrid / Nodemailer)
+  console.log(`[EMAIL] To: ${user.email} | Subject: ${subject}`);
 
   AuditLogModel.create({
     adminId:    admin.adminId,
     adminName:  admin.adminName,
     action:     AuditAction.CITIZEN_EMAIL_SENT,
     targetType: 'citizen',
-    targetId:   citizen._id,
+    targetId:   user._id,
     meta:       { subject },
   }).catch(() => null);
 
-  return { success: true, message: 'Email sent successfully' };
+  return { message: 'Email sent successfully.' };
 }
 
-//  Dashboard stats (citizens slice) 
+//  Dashboard stats 
 
 export async function getCitizenStats() {
-  const [total, active, inactive, flagged] = await Promise.all([
-    CitizenModel.countDocuments({ removedAt: null }),
-    CitizenModel.countDocuments({ status: CitizenStatus.ACTIVE,   removedAt: null }),
-    CitizenModel.countDocuments({ status: CitizenStatus.INACTIVE, removedAt: null }),
-    CitizenModel.countDocuments({ status: CitizenStatus.WARNING,  removedAt: null }),
+  const [total, active, inactive] = await Promise.all([
+    UserModel.countDocuments({ role: 'citizen' }),
+    UserModel.countDocuments({ role: 'citizen', isActive: true  }),
+    UserModel.countDocuments({ role: 'citizen', isActive: false }),
   ]);
 
-  return { totalCitizens: total, activeCitizens: active, inactiveCitizens: inactive, flaggedCitizens: flagged };
-}
+  const xpAgg = await CitizenProfileModel.aggregate([
+    { $group: { _id: null, avgXP: { $avg: '$xpTotal' }, totalStudyMins: { $sum: '$totalStudyMinutes' } } },
+  ]);
 
-//  Formatters 
-
-function formatCitizenList(c: ICitizen & { _id: any; initials?: string }) {
   return {
-    id:            String(c._id),
-    name:          c.name,
-    initials:      c.initials ?? initials(c.name),
-    color:         c.color,
-    email:         c.email,
-    phone:         c.phone,
-    state:         c.state,
-    joinedAt:      (c as any).createdAt,
-    status:        c.status,
-    topicsRead:    c.topicsRead,
-    consultations: c.consultations,
-    lastActive:    c.lastActiveAt,
-    reportCount:   c.reportCount,
+    total,
+    active,
+    inactive,
+    avgXP:            xpAgg[0]?.avgXP         ? Math.round(xpAgg[0].avgXP)     : 0,
+    totalStudyHours:  xpAgg[0]?.totalStudyMins ? Math.round(xpAgg[0].totalStudyMins / 60) : 0,
   };
-}
-
-function formatCitizenFull(c: ICitizen & { _id: any; initials?: string }) {
-  return {
-    ...formatCitizenList(c),
-    modulesEnrolled:  c.modulesEnrolled.map(String),
-    bookmarkedTopics: c.bookmarkedTopics,
-    communityPosts:   c.communityPosts,
-  };
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
 }

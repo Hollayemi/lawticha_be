@@ -2,121 +2,111 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../middleware/error';
 import { UserRole } from '../../models/types';
 
-//  Utility 
+// ============ Utility Functions ============
 
-const NIGERIAN_PHONE_RE = /^(\+234|0)[789][01]\d{8}$/;
-const PLATE_RE = /^[A-Z]{2,3}[-\s]?\d{3}[A-Z]{2,3}$/i;
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const PHONE_RE = /^(\+234|0)[789][01]\d{8}$/;
+
+function isValidEmail(email: string): boolean {
+  return EMAIL_RE.test(email);
+}
 
 function isValidPhone(phone: string): boolean {
-  return NIGERIAN_PHONE_RE.test(phone.replace(/\s/g, ''));
+  return PHONE_RE.test(phone.replace(/\s/g, ''));
 }
 
 function collectErrors(errors: string[]): string | null {
   return errors.length ? errors.join('; ') : null;
 }
 
-//  Shared 
+// ============ Validation Helpers ============
 
-function validatePassword(password: unknown, errors: string[]): void {
-  if (!password || typeof password !== 'string') {
+function validateEmail(email: unknown, errors: string[], required = false): void {
+  if (required && (!email || typeof email !== 'string' || !email.trim())) {
+    errors.push('Email is required');
+  } else if (email && typeof email === 'string' && email.trim()) {
+    if (!isValidEmail(email.trim())) {
+      errors.push('Please provide a valid email address');
+    }
+  }
+}
+
+function validatePhone(phone: unknown, errors: string[], required = false): void {
+  if (required && (!phone || typeof phone !== 'string' || !phone.trim())) {
+    errors.push('Phone number is required');
+  } else if (phone && typeof phone === 'string' && phone.trim()) {
+    if (!isValidPhone(phone.trim())) {
+      errors.push('Please provide a valid Nigerian phone number (e.g., 08012345678)');
+    }
+  }
+}
+
+function validatePassword(password: unknown, errors: string[], required = true): void {
+  if (required && (!password || typeof password !== 'string')) {
     errors.push('Password is required');
-  } else if (password.length < 8) {
-    errors.push('Password must be at least 8 characters');
-  } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-    errors.push('Password must contain uppercase, lowercase and a number');
+  } else if (password && typeof password === 'string') {
+    if (password.length < 8) {
+      errors.push('Password must be at least 8 characters');
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      errors.push('Password must contain uppercase letter, lowercase letter, and number');
+    }
   }
 }
 
-function validatePhone(phone: unknown, errors: string[], label = 'Phone'): void {
-  if (!phone || typeof phone !== 'string' || !phone.trim()) {
-    errors.push(`${label} number is required`);
-  } else if (!isValidPhone(phone.trim())) {
-    errors.push(`${label} must be a valid Nigerian number (e.g. 08012345678)`);
-  }
-}
-
-function validateFullName(name: unknown, errors: string[]): void {
+function validateName(name: unknown, fieldName: string, errors: string[]): void {
   if (!name || typeof name !== 'string' || !name.trim()) {
-    errors.push('Full name is required');
-  } else if (name.trim().length < 3) {
-    errors.push('Full name must be at least 3 characters');
-  } else if (name.trim().length > 120) {
-    errors.push('Full name must not exceed 120 characters');
+    errors.push(`${fieldName} is required`);
+  } else if (name.trim().length < 2) {
+    errors.push(`${fieldName} must be at least 2 characters`);
+  } else if (name.trim().length > 50) {
+    errors.push(`${fieldName} must not exceed 50 characters`);
   }
 }
 
-//  Login 
+function validateRole(role: unknown, errors: string[]): void {
+  if (!role || typeof role !== 'string') {
+    errors.push('Role is required');
+  } else if (!Object.values(UserRole).includes(role as UserRole)) {
+    errors.push(`Invalid role. Must be one of: ${Object.values(UserRole).join(', ')}`);
+  }
+}
 
-export const validateLogin = (
+// ============ Validators ============
+
+/**
+ * Validate user registration data
+ * Supports both email and phone registration
+ */
+export const validateRegister = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
   const errors: string[] = [];
-  const { phone, password } = req.body;
+  const { email, phone, firstName, lastName, password, role } = req.body;
 
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
+  // At least one contact method (email or phone) is required
+  const hasEmail = email && typeof email === 'string' && email.trim();
+  const hasPhone = phone && typeof phone === 'string' && phone.trim();
 
-  const msg = collectErrors(errors);
-  if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
-  next();
-};
-
-//  Government Onboarding 
-
-export const validateGovernmentRegister = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  const errors: string[] = [];
-  const { fullName, phone, password, stateName, govBaseTicketPrice } = req.body;
-
-  validateFullName(fullName, errors);
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
-
-  if (!stateName || typeof stateName !== 'string' || !stateName.trim()) {
-    errors.push('State name is required');
-  } else if (stateName.trim().length > 80) {
-    errors.push('State name is too long');
+  if (!hasEmail && !hasPhone) {
+    errors.push('Either email or phone number is required');
   }
 
-  if (govBaseTicketPrice !== undefined) {
-    const price = Number(govBaseTicketPrice);
-    if (isNaN(price) || price <= 0) {
-      errors.push('Government base ticket price must be a positive number');
-    }
-  }
+  // Validate provided contact methods
+  validateEmail(email, errors, false);
+  validatePhone(phone, errors, false);
 
-  const msg = collectErrors(errors);
-  if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
-  next();
-};
+  // Validate names
+  validateName(firstName, 'First name', errors);
+  validateName(lastName, 'Last name', errors);
 
-//  LGA Onboarding 
+  // Validate password
+  validatePassword(password, errors, true);
 
-export const validateLGARegister = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  const errors: string[] = [];
-  const { fullName, phone, password, lgaName, govId } = req.body;
-
-  validateFullName(fullName, errors);
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
-
-  if (!lgaName || typeof lgaName !== 'string' || !lgaName.trim()) {
-    errors.push('LGA name is required');
-  } else if (lgaName.trim().length > 100) {
-    errors.push('LGA name is too long');
-  }
-
-  if (!govId || typeof govId !== 'string' || !govId.trim()) {
-    errors.push('Government ID (govId) is required');
+  // Validate role (optional, defaults to CITIZEN)
+  if (role) {
+    validateRole(role, errors);
   }
 
   const msg = collectErrors(errors);
@@ -124,55 +114,65 @@ export const validateLGARegister = (
   next();
 };
 
-//  Union Onboarding 
-
-export const validateUnionRegister = (
+/**
+ * Validate user sign-in
+ * Supports sign-in with email, phone, or email/phone + password
+ */
+export const validateSignIn = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
   const errors: string[] = [];
-  const {
-    fullName,
-    phone,
-    password,
-    unionName,
-    unionCode,
-    lgaId,
-    govBasePrice,
-    unionLevy,
-  } = req.body;
+  const { email, phone, password } = req.body;
 
-  validateFullName(fullName, errors);
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
+  const hasEmail = email && typeof email === 'string' && email.trim();
+  const hasPhone = phone && typeof phone === 'string' && phone.trim();
 
-  if (!unionName || typeof unionName !== 'string' || !unionName.trim()) {
-    errors.push('Union name is required');
+  if (!hasEmail && !hasPhone) {
+    errors.push('Please provide either email or phone number');
   }
 
-  if (!unionCode || typeof unionCode !== 'string') {
-    errors.push('Union code is required (4 uppercase letters, e.g. IKJA)');
-  } else if (!/^[A-Z]{4}$/.test(unionCode.trim().toUpperCase())) {
-    errors.push('Union code must be exactly 4 uppercase letters');
+  // Validate provided identifier
+  if (hasEmail) {
+    validateEmail(email, errors, true);
+  }
+  if (hasPhone) {
+    validatePhone(phone, errors, true);
   }
 
-  if (!lgaId || typeof lgaId !== 'string' || !lgaId.trim()) {
-    errors.push('LGA ID (lgaId) is required');
+  // Validate password
+  validatePassword(password, errors, true);
+
+  const msg = collectErrors(errors);
+  if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
+  next();
+};
+
+/**
+ * Validate forgot password request
+ * Requires email OR phone
+ */
+export const validateForgotPassword = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const errors: string[] = [];
+  const { email, phone } = req.body;
+
+  const hasEmail = email && typeof email === 'string' && email.trim();
+  const hasPhone = phone && typeof phone === 'string' && phone.trim();
+
+  if (!hasEmail && !hasPhone) {
+    errors.push('Please provide either email or phone number');
   }
 
-  if (govBasePrice !== undefined) {
-    const price = Number(govBasePrice);
-    if (isNaN(price) || price < 0) {
-      errors.push('Government base price must be a non-negative number');
-    }
+  if (hasEmail) {
+    validateEmail(email, errors, true);
   }
-
-  if (unionLevy !== undefined) {
-    const levy = Number(unionLevy);
-    if (isNaN(levy) || levy < 0) {
-      errors.push('Union levy must be a non-negative number');
-    }
+  if (hasPhone) {
+    validatePhone(phone, errors, true);
   }
 
   const msg = collectErrors(errors);
@@ -180,65 +180,32 @@ export const validateUnionRegister = (
   next();
 };
 
-//  Ticket Seller Onboarding 
-
-export const validateSellerRegister = (
+/**
+ * Validate password reset with token
+ */
+export const validateResetPassword = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
   const errors: string[] = [];
-  const { fullName, phone, password, unionId } = req.body;
+  const { token, newPassword } = req.body;
 
-  validateFullName(fullName, errors);
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
-
-  if (!unionId || typeof unionId !== 'string' || !unionId.trim()) {
-    errors.push('Union ID (unionId) is required to register a seller');
+  if (!token || typeof token !== 'string' || !token.trim()) {
+    errors.push('Reset token is required');
   }
+
+  validatePassword(newPassword, errors, true);
 
   const msg = collectErrors(errors);
   if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
   next();
 };
 
-//  Rider Onboarding 
-
-export const validateRiderRegister = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  const errors: string[] = [];
-  const { fullName, phone, password, unionId, vehicleType, vehicleNumber } =
-    req.body;
-
-  validateFullName(fullName, errors);
-  validatePhone(phone, errors);
-  validatePassword(password, errors);
-
-  if (!unionId || typeof unionId !== 'string' || !unionId.trim()) {
-    errors.push('Union ID (unionId) is required');
-  }
-
-  const allowedVehicleTypes = ['okada', 'tricycle'];
-  if (!vehicleType || !allowedVehicleTypes.includes(vehicleType)) {
-    errors.push(`Vehicle type must be one of: ${allowedVehicleTypes.join(', ')}`);
-  }
-
-  if (!vehicleNumber || typeof vehicleNumber !== 'string' || !vehicleNumber.trim()) {
-    errors.push('Vehicle number is required');
-  }
-
-  const msg = collectErrors(errors);
-  if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
-  next();
-};
-
-//  Change Password 
-
-export const validateChangePassword = (
+/**
+ * Validate password update for authenticated users
+ */
+export const validateUpdatePassword = (
   req: Request,
   res: Response,
   next: NextFunction
@@ -246,12 +213,76 @@ export const validateChangePassword = (
   const errors: string[] = [];
   const { currentPassword, newPassword } = req.body;
 
-  if (!currentPassword) errors.push('Current password is required');
+  if (!currentPassword || typeof currentPassword !== 'string') {
+    errors.push('Current password is required');
+  }
 
-  validatePassword(newPassword, errors);
+  validatePassword(newPassword, errors, true);
 
   if (currentPassword && newPassword && currentPassword === newPassword) {
     errors.push('New password must be different from current password');
+  }
+
+  const msg = collectErrors(errors);
+  if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));
+  next();
+};
+
+/**
+ * Validate profile update
+ * Allows partial updates to user profile fields
+ */
+export const validateUpdateProfile = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const errors: string[] = [];
+  const { email, phone, firstName, lastName, avatarUrl } = req.body;
+
+  // At least one field to update
+  const hasUpdate = email || phone || firstName || lastName || avatarUrl;
+  if (!hasUpdate) {
+    errors.push('At least one field to update is required');
+  }
+
+  // Validate fields if provided
+  if (email !== undefined) {
+    validateEmail(email, errors, false);
+    
+    // Check if email is being cleared (not allowed)
+    if (email === '' || email === null) {
+      errors.push('Email cannot be removed');
+    }
+  }
+
+  if (phone !== undefined) {
+    validatePhone(phone, errors, false);
+    
+    // Check if phone is being cleared (not allowed if no email)
+    if (phone === '' || phone === null) {
+      errors.push('Phone number cannot be removed if it\'s your only contact method');
+    }
+  }
+
+  if (firstName !== undefined) {
+    if (!firstName || typeof firstName !== 'string' || !firstName.trim()) {
+      errors.push('First name cannot be empty');
+    } else if (firstName.trim().length < 2 || firstName.trim().length > 50) {
+      errors.push('First name must be between 2 and 50 characters');
+    }
+  }
+
+  if (lastName !== undefined) {
+    if (!lastName || typeof lastName !== 'string' || !lastName.trim()) {
+      errors.push('Last name cannot be empty');
+    } else if (lastName.trim().length < 2 || lastName.trim().length > 50) {
+      errors.push('Last name must be between 2 and 50 characters');
+    }
+  }
+
+  if (avatarUrl !== undefined && avatarUrl !== null && typeof avatarUrl !== 'string') {
+    errors.push('Avatar URL must be a string');
   }
 
   const msg = collectErrors(errors);

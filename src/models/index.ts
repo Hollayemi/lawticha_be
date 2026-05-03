@@ -1,51 +1,69 @@
 /**
  * LawTicha — Model Index
- * 
- * All Mongoose models exported from one place for clean imports:
+ *
+ * All Mongoose models and types exported from one place:
  *
  *   import { UserModel, LawyerProfileModel, ConsultationModel } from '@/models';
  *
- * ENTITY MAP (who links to what):
+ * ENTITY MAP 
  *
- *   User ┐
- *     ├ CitizenProfile (1-to-1)          │
- *     └ LawyerProfile  (1-to-1)          │
- *                                          │
- *   LegalTopic ┬ LegalModule ┤
- *                │     ├ Enrollment ┤ (citizen ↔ module)
- *                │     ├ UserProgress    │ (per-lesson)
- *                │     ├ Certificate     │
- *                │     └ StudySession    │
- *                └ DailyChallenge        │
- *                                          │
- *   LegalAct  Bookmark -┤ (citizen ↔ act / module)
- *                                          │
- *   LawyerProfile ┬ Consultation ┤ (citizen ↔ lawyer)
- *                   │     ├ Conversation  │
- *                   │     │     └ Message │
- *                   │     └ LawyerReview  │
- *                   └ LawyerRequest ┘ (citizen posts, platform matches)
+ *  User (role: citizen | lawyer | admin)
+ *    ├ CitizenProfile   1-to-1  (XP, streak, prefs, notifications)
+ *    └ LawyerProfile    1-to-1  (NBA, specialisms, fees, verification embedded)
  *
- *   CommunityPost  (citizen authored, admin approved)
- *   Notification   (any recipient)
+ *  LegalTopic → LegalModule
+ *    ├ Enrollment     (citizen ↔ module)
+ *    ├ UserProgress   (per-lesson)
+ *    ├ Certificate
+ *    └ StudySession
+ *
+ *  LawyerProfile
+ *    ├ Consultation   (citizen ↔ lawyer booking)
+ *    │     ├ Conversation → Message
+ *    │     └ LawyerReview
+ *    └ LawyerRequest  (citizen posts a request, platform matches)
+ *
+ *  LegalAct  ← Bookmark (citizen ↔ act/module)
+ *  DailyChallenge ← DailyChallengeAttempt
+ *  CommunityPost
+ *  Notification
+ *  AdminUser  ← AuditLog
+ *  Otp
  */
 
-export { UserModel }                                   from './User.model';
-export { CitizenProfileModel }                         from './CitizenProfile.model';
-export { LawyerProfileModel }                          from './LawyerProfile.model';
-export { LegalTopicModel, LegalModuleModel }           from './LegalModule.model';
-export { EnrollmentModel, UserProgressModel }          from './Enrollment.model';
-export { ConsultationModel, LawyerRequestModel }       from './Consultation.model';
-export { ConversationModel, MessageModel }             from './Message.model';
-export { LegalActModel, BookmarkModel }                from './LegalAct.model';
+// Core user models 
+export { UserModel }                from './User.model';
+export type { IUserDocument, IUserModel } from './User.model';
+
+export { CitizenProfileModel }      from './CitizenProfile.model';
+export type { ICitizenProfileDocument }  from './CitizenProfile.model';
+
+export { LawyerProfileModel }       from './LawyerProfile.model';
+export type { ILawyerProfileDocument }   from './LawyerProfile.model';
+
+// Admin 
+export { AdminUserModel, AuditLogModel } from './Admin.model';
+export type { IAdminUserDocument }       from './Admin.model';
+
+// Legal content 
+export { LegalTopicModel, LegalModuleModel }   from './LegalModule.model';
+export { EnrollmentModel, UserProgressModel }  from './Enrollment.model';
+export { LegalActModel, BookmarkModel }        from './LegalAct.model';
 export {
   CertificateModel,
   DailyChallengeModel,
   DailyChallengeAttemptModel,
   CommunityPostModel,
-}                                                      from './Certificate.model';
-export { LawyerReviewModel, NotificationModel }        from './Notification.model';
-export { StudySessionModel }                           from './StudySession.model';
+}                                              from './Certificate.model';
 
-// Types & enums
+// Consultations 
+export { ConsultationModel, LawyerRequestModel }  from './Consultation.model';
+export { ConversationModel, MessageModel }        from './Message.model';
+export { LawyerReviewModel, NotificationModel }   from './Notification.model';
+
+// Activity 
+export { StudySessionModel }  from './StudySession.model';
+export { OtpModel }           from './Otp.model';
+
+// Types & enums (re-exported for convenience) 
 export * from './types';
