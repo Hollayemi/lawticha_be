@@ -5,14 +5,14 @@ import { AppError } from '../middleware/error';
 const OTP_TTL_MINUTES   = 10;
 const MAX_ATTEMPTS      = 5;
 
-// ─── Generate a 6-digit OTP ───────────────────────────────────────────────────
+//  Generate a 6-digit OTP 
 
 export function generateOtpCode(): string {
   // Cryptographically random 6-digit string
   return String(crypto.randomInt(100000, 999999));
 }
 
-// ─── Save OTP to DB (invalidates previous unused ones for this phone) ─────────
+//  Save OTP to DB (invalidates previous unused ones for this phone) 
 
 export async function createOtp(phone: string): Promise<string> {
   // Mark any existing unused OTPs as used so old codes can't be replayed
@@ -26,7 +26,7 @@ export async function createOtp(phone: string): Promise<string> {
   return code;
 }
 
-// ─── Deliver OTP (Twilio stub — swap in real SDK call here) ──────────────────
+//  Deliver OTP (Twilio stub — swap in real SDK call here) 
 
 export async function sendOtpSms(phone: string, code: string): Promise<void> {
   if (process.env.NODE_ENV === 'development') {
@@ -34,7 +34,7 @@ export async function sendOtpSms(phone: string, code: string): Promise<void> {
     return;
   }
 
-  // ── Production: Twilio / Termii / any SMS provider ───────────────────────
+  //  Production: Twilio / Termii / any SMS provider 
   // const client = require('twilio')(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
   // await client.messages.create({
   //   body: `Your NURTW verification code is ${code}. Valid for ${OTP_TTL_MINUTES} minutes.`,
@@ -51,7 +51,7 @@ export async function sendOtpSms(phone: string, code: string): Promise<void> {
   console.warn('[OTP] SMS provider not configured — code:', code);
 }
 
-// ─── Verify OTP ───────────────────────────────────────────────────────────────
+//  Verify OTP 
 
 export async function verifyOtpCode(
   phone: string,

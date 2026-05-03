@@ -63,12 +63,12 @@ async function seed() {
 
   console.log(`
   ✅  Super Admin created successfully
-  ─────────────────────────────────────
+  
   ID:     ${user._id}
   Name:   ${fullName}
   Phone:  ${phone}
   Role:   ${user.role}
-  ─────────────────────────────────────
+  
   To log in, hit POST /api/v1/auth/send-otp with { "phone": "${phone}" }
   then POST /api/v1/auth/verify-otp with the 6-digit code.
   `);

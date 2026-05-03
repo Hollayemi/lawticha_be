@@ -9,17 +9,17 @@ import mongoose from 'mongoose';
 import {
   errorHandler,
   handle404,
-  jsonParseErrorHandler,
+  // jsonParseErrorHandler,
   extendResponse,
   AppResponse,
-} from './middleware/error';
+} from './src/middleware/error';
 
-import authRoutes  from './routes/auth.routes';
-import adminRoutes from './routes/admin.routes';
+// import authRoutes  from './routes/auth.routes';
+// import adminRoutes from './routes/admin.routes';
 
 dotenv.config();
 
-// ─── DB ───────────────────────────────────────────────────────────────────────
+//  DB 
 
 async function connectDB(): Promise<void> {
   const uri =
@@ -35,7 +35,7 @@ connectDB().catch((err) => {
   process.exit(1);
 });
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+//  App 
 
 const app = express();
 
@@ -44,11 +44,11 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000', creden
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
-app.use(jsonParseErrorHandler);
+// app.use(jsonParseErrorHandler);
 app.use(extendResponse);
 app.use(process.env.NODE_ENV === 'development' ? morgan('dev') : morgan('combined'));
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
+//  Routes 
 
 app.get('/health', (_req, res) => {
   (res as AppResponse).data(
@@ -57,15 +57,15 @@ app.get('/health', (_req, res) => {
   );
 });
 
-app.use('/api/v1/auth',  authRoutes);
-app.use('/api/v1/admin', adminRoutes);
+// app.use('/api/v1/auth',  authRoutes);
+// app.use('/api/v1/admin', adminRoutes);
 
-// ─── Error handling ───────────────────────────────────────────────────────────
+//  Error handling 
 
 app.use('*', handle404);
 app.use(errorHandler);
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+//  Start 
 
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {

@@ -1,76 +1,101 @@
-import {
-  UserModel,
-  OtpModel,
-} from '../models';
-import { UserRole } from '../models/types';
+import crypto from 'crypto';
+import { Response } from 'express';
+import { UserModel, IUserDocument } from '../User.model';
 import { AppError } from '../middleware/error';
-import { createOtp, sendOtpSms, verifyOtpCode } from '../helpers/otp.helper';
+import { UserRole } from '../types';
 
-// ─── Send OTP ─────────────────────────────────────────────────────────────────
+//  Cookie config 
 
-export async function sendOtp(phone: string) {
-  const normalised = phone.trim();
+const COOKIE_OPTIONS = {
+  httpOnly: true,                                          // JS can't touch it
+  secure: process.env.NODE_ENV === 'production',           // HTTPS only in prod
+  sameSite: 'strict' as const,
+  path: '/',
+};
 
-  const user = await UserModel.findOne({ phone: normalised });
-  if (!user) {
-    throw new AppError(
-      'No account found with this phone number. Please contact your administrator.',
-      404,
-      'NOT_FOUND'
-    );
-  }
+const REFRESH_COOKIE_TTL_MS =
+  Number(process.env.JWT_REFRESH_COOKIE_DAYS ?? 30) * 24 * 60 * 60 * 1000;
 
-  if (!user.isActive) {
-    throw new AppError('Your account has been deactivated. Please contact support.', 403, 'FORBIDDEN');
-  }
+//  sendTokenResponse 
+// Single function that signs both tokens, sets the refresh cookie, and returns
+// the standardised response shape. Called by register, signIn, refreshToken.
 
-  const code = await createOtp(normalised);
-  await sendOtpSms(normalised, code);
+export function sendTokenResponse(
+  res: Response,
+  user: IUserDocument,
+  statusCode = 200,
+  message = 'Success'
+): Response {
+  const accessToken  = user.getSignedJwtToken();
+  const refreshToken = user.getRefreshToken(); // also sets user.refreshToken
 
-  return { phone: normalised, message: 'OTP sent successfully', expiresIn: 600 };
-}
+  // Persist the stored refresh token (getRefreshToken mutated the doc)
+  // We call save() fire-and-forget — don't await in the response path
+  user.save({ validateBeforeSave: false }).catch(console.error);
 
-// ─── Verify OTP ───────────────────────────────────────────────────────────────
-
-export async function verifyOtp(phone: string, code: string) {
-  const normalised = phone.trim();
-
-  await verifyOtpCode(normalised, code);
-
-  const user = await UserModel.findOne({ phone: normalised });
-  if (!user) throw new AppError('Account not found', 404);
-
-  // Stamp last login (fire-and-forget)
-  UserModel.updateOne({ _id: user._id }, { lastLogin: new Date() }).exec();
-
-  return { user };
-}
-
-// ─── Resend OTP ───────────────────────────────────────────────────────────────
-
-export async function resendOtp(phone: string) {
-  // 60-second cooldown
-  const recent = await OtpModel.findOne({
-    phone: phone.trim(),
-    used: false,
-    createdAt: { $gte: new Date(Date.now() - 60_000) },
+  // httpOnly cookie for refresh token
+  res.cookie('refreshToken', refreshToken, {
+    ...COOKIE_OPTIONS,
+    expires: new Date(Date.now() + REFRESH_COOKIE_TTL_MS),
   });
 
-  if (recent) {
-    throw new AppError('Please wait 60 seconds before requesting a new OTP.', 429, 'RATE_LIMIT');
-  }
-
-  return sendOtp(phone);
+  return res.status(statusCode).json({
+    success: true,
+    message,
+    data: {
+      accessToken,
+      user: user.toSafeObject(),
+    },
+  });
 }
 
-// ─── Get My Profile ───────────────────────────────────────────────────────────
+//  clearAuthCookies 
 
-export async function getMyProfile(userId: string, role: UserRole) {
-  const user = await UserModel.findById(userId);
-  if (!user) throw new AppError('User not found', 404);
+export function clearAuthCookies(res: Response): void {
+  res.cookie('refreshToken', '', {
+    ...COOKIE_OPTIONS,
+    expires: new Date(0), // immediately expired
+  });
+}
 
-  let profile: Record<string, unknown> | null = null;
+//  hashToken 
+// Hash a raw token before comparing against the stored hash.
 
+export function hashToken(rawToken: string): string {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
 
-  return { user, profile };
+//  findActiveUser 
+// Shared lookup used across multiple service calls.
+
+export async function findActiveUser(id: string): Promise<IUserDocument> {
+  const user = await UserModel.findById(id);
+  if (!user)       throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!user.isActive) throw new AppError('Your account has been deactivated.', 403, 'FORBIDDEN');
+  return user;
+}
+
+//  createProfileAfterRegister 
+// After a new user is created, spin up their role-specific profile.
+// Imported lazily to avoid circular deps.
+
+export async function createProfileAfterRegister(user: IUserDocument): Promise<void> {
+  if (user.role === UserRole.CITIZEN) {
+    const { CitizenProfileModel } = await import('../CitizenProfile.model');
+    await CitizenProfileModel.create({ userId: user._id });
+  }
+
+  if (user.role === UserRole.LAWYER) {
+    // LawyerProfile can't be fully created here — they still need to submit
+    // their NBA number etc. via a separate onboarding flow.
+    // We create a skeleton record so the profile endpoint always resolves.
+    const { LawyerProfileModel } = await import('../LawyerProfile.model');
+    await LawyerProfileModel.create({
+      userId: user._id,
+      nbaNumber:   'PENDING',
+      yearOfCall:  0,
+      fees:        { message: 0, call: 0, video: 0 },
+      verificationStatus: 'pending',
+    });
+  }
 }

@@ -8,7 +8,7 @@ export interface JwtPayload {
   role: UserRole;
 }
 
-// ─── Sign access token ────────────────────────────────────────────────────────
+//  Sign access token 
 
 export const signAccessToken = (id: Types.ObjectId, role: UserRole): string => {
   return jwt.sign(
@@ -18,7 +18,7 @@ export const signAccessToken = (id: Types.ObjectId, role: UserRole): string => {
   );
 };
 
-// ─── Sign refresh token ───────────────────────────────────────────────────────
+//  Sign refresh token 
 
 export const signRefreshToken = (id: Types.ObjectId, role: UserRole): string => {
   return jwt.sign(
@@ -28,13 +28,13 @@ export const signRefreshToken = (id: Types.ObjectId, role: UserRole): string => 
   );
 };
 
-// ─── Verify token ─────────────────────────────────────────────────────────────
+//  Verify token 
 
 export const verifyToken = (token: string, secret: string): JwtPayload => {
   return jwt.verify(token, secret) as JwtPayload;
 };
 
-// ─── Send tokens to client (access in body, refresh in httpOnly cookie) ───────
+//  Send tokens to client (access in body, refresh in httpOnly cookie) 
 
 export const sendTokenResponse = (
   res: Response,

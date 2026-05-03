@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../middleware/error';
 import { UserRole } from '../../models/types';
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
+//  Utility 
 
 const NIGERIAN_PHONE_RE = /^(\+234|0)[789][01]\d{8}$/;
 const PLATE_RE = /^[A-Z]{2,3}[-\s]?\d{3}[A-Z]{2,3}$/i;
@@ -15,7 +15,7 @@ function collectErrors(errors: string[]): string | null {
   return errors.length ? errors.join('; ') : null;
 }
 
-// ─── Shared ───────────────────────────────────────────────────────────────────
+//  Shared 
 
 function validatePassword(password: unknown, errors: string[]): void {
   if (!password || typeof password !== 'string') {
@@ -45,7 +45,7 @@ function validateFullName(name: unknown, errors: string[]): void {
   }
 }
 
-// ─── Login ───────────────────────────────────────────────────────────────────
+//  Login 
 
 export const validateLogin = (
   req: Request,
@@ -63,7 +63,7 @@ export const validateLogin = (
   next();
 };
 
-// ─── Government Onboarding ───────────────────────────────────────────────────
+//  Government Onboarding 
 
 export const validateGovernmentRegister = (
   req: Request,
@@ -95,7 +95,7 @@ export const validateGovernmentRegister = (
   next();
 };
 
-// ─── LGA Onboarding ──────────────────────────────────────────────────────────
+//  LGA Onboarding 
 
 export const validateLGARegister = (
   req: Request,
@@ -124,7 +124,7 @@ export const validateLGARegister = (
   next();
 };
 
-// ─── Union Onboarding ────────────────────────────────────────────────────────
+//  Union Onboarding 
 
 export const validateUnionRegister = (
   req: Request,
@@ -180,7 +180,7 @@ export const validateUnionRegister = (
   next();
 };
 
-// ─── Ticket Seller Onboarding ────────────────────────────────────────────────
+//  Ticket Seller Onboarding 
 
 export const validateSellerRegister = (
   req: Request,
@@ -203,7 +203,7 @@ export const validateSellerRegister = (
   next();
 };
 
-// ─── Rider Onboarding ────────────────────────────────────────────────────────
+//  Rider Onboarding 
 
 export const validateRiderRegister = (
   req: Request,
@@ -236,7 +236,7 @@ export const validateRiderRegister = (
   next();
 };
 
-// ─── Change Password ──────────────────────────────────────────────────────────
+//  Change Password 
 
 export const validateChangePassword = (
   req: Request,

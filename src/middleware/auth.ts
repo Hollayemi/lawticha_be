@@ -1,106 +1,191 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { asyncHandler, AppError } from './error';
-import { verifyToken, JwtPayload } from '../helpers/jwt.helper';
-import { UserModel } from '../models';
+import { UserModel, IUserDocument } from '../models/User.model';
 import { UserRole } from '../models/types';
+
+//  Extend Express Request 
 
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: string;
-        fullName: string;
-        phone: string;
-        role: UserRole;
-        isActive: boolean;
-      };
+      user?: IUserDocument;
     }
   }
 }
 
-// ─── protect ─────────────────────────────────────────────────────────────────
+//  Token extraction helper 
+
+function extractToken(req: Request): string | null {
+  // 1. Authorization: Bearer <token>
+  if (req.headers.authorization?.startsWith('Bearer ')) {
+    return req.headers.authorization.split(' ')[1];
+  }
+  // 2. Cookie (for browser clients)
+  if (req.cookies?.accessToken) {
+    return req.cookies.accessToken;
+  }
+  return null;
+}
+
+//  protect 
+//
+// Verifies the access JWT, loads the user, attaches to req.user.
+// Checks:
+//   ✓ Token present
+//   ✓ Token valid & not expired
+//   ✓ User still exists in DB
+//   ✓ User account is active
+//   ✓ Password not changed after token was issued
 
 export const protect = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
-    let token: string | undefined;
-
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
-    }
+    const token = extractToken(req);
 
     if (!token) {
-      return next(new AppError('You are not logged in. Please log in to continue.', 401, 'UNAUTHORIZED'));
+      return next(
+        new AppError('You are not logged in. Please sign in to continue.', 401, 'UNAUTHORIZED')
+      );
     }
 
-    let decoded: JwtPayload;
+    // Verify token — throws if expired or tampered
+    let decoded: { id: string; role: UserRole; iat: number };
     try {
-      decoded = verifyToken(token, process.env.JWT_SECRET!);
+      decoded = jwt.verify(token, process.env.JWT_SECRET as string) as typeof decoded;
     } catch (err: any) {
       const message =
         err.name === 'TokenExpiredError'
-          ? 'Your session has expired. Please log in again.'
-          : 'Invalid token. Please log in again.';
+          ? 'Your session has expired. Please sign in again.'
+          : 'Invalid token. Please sign in again.';
       return next(new AppError(message, 401, 'UNAUTHORIZED'));
     }
 
-    const user = await UserModel.findById(decoded.id).select('fullName phone role isActive');
-    if (!user) return next(new AppError('The account belonging to this token no longer exists.', 401, 'UNAUTHORIZED'));
-    if (!user.isActive) return next(new AppError('Your account has been deactivated. Please contact support.', 403, 'FORBIDDEN'));
+    // Fetch user — select sensitive fields needed for checks
+    const user = await UserModel.findById(decoded.id).select(
+      '+passwordChangedAt +refreshToken'
+    );
 
-    req.user = {
-      id: user._id!.toString(),
-      fullName: user.fullName,
-      phone: user.phone,
-      role: user.role as UserRole,
-      isActive: user.isActive,
-    };
+    if (!user) {
+      return next(
+        new AppError(
+          'The account associated with this token no longer exists.',
+          401,
+          'UNAUTHORIZED'
+        )
+      );
+    }
+
+    if (!user.isActive) {
+      return next(
+        new AppError(
+          'Your account has been deactivated. Please contact support.',
+          403,
+          'FORBIDDEN'
+        )
+      );
+    }
+
+    // Invalidate tokens issued before a password change
+    if (user.changedPasswordAfter(decoded.iat)) {
+      return next(
+        new AppError(
+          'Your password was recently changed. Please sign in again.',
+          401,
+          'UNAUTHORIZED'
+        )
+      );
+    }
+
+    req.user = user;
+    next();
+  }
+);
+
+//  optionalAuth 
+//
+// Like protect, but never throws. Attaches user if token is valid,
+// continues anonymously if not. Useful for public endpoints that have
+// richer responses for authenticated users (e.g. bookmarked acts).
+
+export const optionalAuth = asyncHandler(
+  async (req: Request, _res: Response, next: NextFunction) => {
+    const token = extractToken(req);
+    if (!token) return next();
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
+        id: string;
+        iat: number;
+      };
+      const user = await UserModel.findById(decoded.id).select('+passwordChangedAt');
+      if (user && user.isActive && !user.changedPasswordAfter(decoded.iat)) {
+        req.user = user;
+      }
+    } catch {
+      // Silently ignore — anonymous access continues
+    }
 
     next();
   }
 );
 
-// ─── authorizeRoles ───────────────────────────────────────────────────────────
+//  authorizeRoles 
+//
+// Must be used AFTER protect. Restricts the route to specific roles.
+//
+// Usage:
+//   router.get('/admin/stats', protect, authorizeRoles(UserRole.ADMIN), handler)
 
 export const authorizeRoles = (...roles: UserRole[]) =>
   (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) return next(new AppError('Not authenticated', 401, 'UNAUTHORIZED'));
-    if (!roles.includes(req.user.role)) {
+    if (!req.user) {
+      return next(new AppError('Not authenticated.', 401, 'UNAUTHORIZED'));
+    }
+    if (!roles.includes(req.user.role as UserRole)) {
       return next(
-        new AppError(`Access denied. Restricted to: ${roles.join(', ')}`, 403, 'FORBIDDEN')
+        new AppError(
+          `Access denied. This route is restricted to: ${roles.join(', ')}.`,
+          403,
+          'FORBIDDEN'
+        )
       );
     }
     next();
   };
 
-// ─── Convenience guards ───────────────────────────────────────────────────────
+//  Convenience role guards 
 
-/** Super admin only */
-export const superAdminOnly = authorizeRoles(UserRole.SUPER_ADMIN);
+/** Admin only */
+export const adminOnly = authorizeRoles(UserRole.ADMIN);
 
-/** Super admin or Government */
-export const superAdminOrGov = authorizeRoles(UserRole.SUPER_ADMIN, UserRole.GOVERNMENT);
+/** Admin or Lawyer */
+export const adminOrLawyer = authorizeRoles(UserRole.ADMIN, UserRole.LAWYER);
 
-/** Super admin, Government, or LGA */
-export const managementTier = authorizeRoles(UserRole.SUPER_ADMIN, UserRole.GOVERNMENT, UserRole.LGA);
-
-/** Super admin, Government, LGA, or Union — can read downwards */
-export const seniorStaff = authorizeRoles(
-  UserRole.SUPER_ADMIN,
-  UserRole.GOVERNMENT,
-  UserRole.LGA,
-  UserRole.UNION
+/** Verified lawyer only — also checks lawyerProfile.verificationStatus */
+export const verifiedLawyerOnly = asyncHandler(
+  async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user || req.user.role !== UserRole.LAWYER) {
+      return next(
+        new AppError('Access denied. Verified lawyers only.', 403, 'FORBIDDEN')
+      );
+    }
+    // Lazy-load profile only when this guard is used
+    const { LawyerProfileModel } = await import('../models/LawyerProfile.model');
+    const profile = await LawyerProfileModel.findOne({ userId: req.user._id }).select(
+      'verificationStatus'
+    );
+    if (!profile || profile.verificationStatus !== 'verified') {
+      return next(
+        new AppError(
+          'Your lawyer profile has not been verified yet.',
+          403,
+          'FORBIDDEN'
+        )
+      );
+    }
+    next();
+  }
 );
 
-/** Union or Seller */
-export const operationalStaff = authorizeRoles(UserRole.UNION, UserRole.SELLER);
-
-/** Union only */
-export const unionOnly = authorizeRoles(UserRole.UNION);
-
-/** Seller only */
-export const sellerOnly = authorizeRoles(UserRole.SELLER);
-
-/** Rider only */
-export const riderOnly = authorizeRoles(UserRole.RIDER);
+/** Citizen only */
+export const citizenOnly = authorizeRoles(UserRole.CITIZEN);
