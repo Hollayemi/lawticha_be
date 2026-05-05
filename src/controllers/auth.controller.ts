@@ -134,7 +134,7 @@ export const refreshToken = asyncHandler(
       return next(new AppError('Session invalid. Please sign in again.', 401, 'UNAUTHORIZED'));
     }
 
-    // Rotation check — detect token reuse
+    // Rotation check,  detect token reuse
     if (user.refreshToken !== incomingToken) {
       await UserModel.findByIdAndUpdate(user._id, { $unset: { refreshToken: '' } });
       clearAuthCookies(res);

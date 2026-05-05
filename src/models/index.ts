@@ -1,5 +1,5 @@
 /**
- * LawTicha — Model Index
+ * LawTicha,  Model Index
  *
  * All Mongoose models and types exported from one place:
  *

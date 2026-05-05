@@ -7,7 +7,7 @@ import { ILegalAct, IBookmark } from './types';
  * summary and statutory text.
  *
  * From: library/page.tsx          → act cards, search, filter
- *       learn/[slug]/page.tsx     → "Section 35 — Full Text Explained"
+ *       learn/[slug]/page.tsx     → "Section 35,  Full Text Explained"
  *       dashboard/page.tsx        → BOOKMARKS list
  *       dashboard/learn/[slug]    → "Talk to a lawyer nudge" links to topic
  */
@@ -72,7 +72,7 @@ export const LegalActModel =
 
 /**
  * BOOKMARK
- * A citizen's saved reference — can be a LegalAct section or a module lesson.
+ * A citizen's saved reference,  can be a LegalAct section or a module lesson.
  *
  * From: dashboard/page.tsx → BOOKMARKS list (title, law name, accent colour)
  *       dashboard/learn/page.tsx → Bookmark button on module card
@@ -86,7 +86,7 @@ const BookmarkSchema = new Schema<IBookmark>(
       index: true,
     },
 
-    // What is bookmarked — one of:
+    // What is bookmarked,  one of:
     refType: {
       type: String,
       enum: ['legal_act', 'module', 'lesson'],
@@ -96,7 +96,7 @@ const BookmarkSchema = new Schema<IBookmark>(
     sectionId:  { type: Schema.Types.ObjectId }, // if bookmarking a specific section
 
     // Denormalised for quick list rendering (no populate needed)
-    title:       { type: String, required: true },   // "Section 35 — Right to Personal Liberty"
+    title:       { type: String, required: true },   // "Section 35,  Right to Personal Liberty"
     sourceName:  { type: String },                   // "1999 Constitution" or module title
     accentColor: { type: String },                   // "#E8317A"
   },

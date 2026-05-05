@@ -1,8 +1,8 @@
 /**
- * Seed script — creates the Super Admin user.
+ * Seed script,  creates the Super Admin user.
  *
  * A super admin is simply a User with role: 'super_admin'.
- * There is no separate profile document — the User record IS the super admin.
+ * There is no separate profile document,  the User record IS the super admin.
  * They log in via OTP like every other role.
  *
  * Usage:
@@ -46,14 +46,14 @@ async function seed() {
     if (existing.role !== UserRole.SUPER_ADMIN) {
       console.error('    ❌  That phone belongs to a non-super-admin user. Use a different number.');
     } else {
-      console.log('    ✅  Super admin already seeded — nothing to do.');
+      console.log('    ✅  Super admin already seeded,  nothing to do.');
     }
 
     await mongoose.disconnect();
     return;
   }
 
-  // Create the super admin user — no password, no separate profile doc
+  // Create the super admin user,  no password, no separate profile doc
   const user = await UserModel.create({
     phone,
     fullName,

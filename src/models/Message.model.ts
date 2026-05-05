@@ -3,7 +3,7 @@ import { IMessage, IConversation } from './types';
 
 /**
  * CONVERSATION
- * A thread between a citizen and a lawyer — tied to a Consultation.
+ * A thread between a citizen and a lawyer,  tied to a Consultation.
  * One consultation → one conversation.
  *
  * From: dashboard/messages/page.tsx (implied)

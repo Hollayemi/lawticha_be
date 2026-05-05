@@ -180,7 +180,7 @@ export interface ILawyerProfile extends BaseModel {
   state?: string;
   stateCode?: string;
 
-  // Verification workflow (embedded — no separate model needed for simple cases)
+  // Verification workflow (embedded,  no separate model needed for simple cases)
   verificationStatus: VerificationStatus;
   verificationRejectedReason?: string;
   verifiedAt?: Date;

@@ -28,7 +28,7 @@ export interface ICitizenProfileDocument extends Omit<ICitizenProfile, '_id'>, D
   addXP(points: number): Promise<ICitizenProfileDocument>;
 
   /**
-   * Mark a learning activity — advances streakDays if not already counted today,
+   * Mark a learning activity,  advances streakDays if not already counted today,
    * resets the streak if the user skipped yesterday.
    * Saves automatically.
    */
@@ -154,13 +154,13 @@ CitizenProfileSchema.methods.markActivity = async function (
     );
 
     if (last.getTime() === today.getTime()) {
-      // Already counted today — nothing to do
+      // Already counted today,  nothing to do
     } else if (last.getTime() === yesterday.getTime()) {
-      // Consecutive day — extend streak
+      // Consecutive day,  extend streak
       this.streakDays  += 1;
       this.streakLastAt = now;
     } else {
-      // Gap — reset streak
+      // Gap,  reset streak
       this.streakDays   = 1;
       this.streakLastAt = now;
     }

@@ -26,7 +26,7 @@ export async function createOtp(phone: string): Promise<string> {
   return code;
 }
 
-//  Deliver OTP (Twilio stub — swap in real SDK call here) 
+//  Deliver OTP (Twilio stub,  swap in real SDK call here) 
 
 export async function sendOtpSms(phone: string, code: string): Promise<void> {
   if (process.env.NODE_ENV === 'development') {
@@ -42,13 +42,13 @@ export async function sendOtpSms(phone: string, code: string): Promise<void> {
   //   to: `+234${phone.replace(/^0/, '')}`,
   // });
   //
-  // Alternatively — Termii:
+  // Alternatively,  Termii:
   // await axios.post('https://api.ng.termii.com/api/sms/send', {
   //   to: phone, from: 'NURTW', sms: `Your code: ${code}`,
   //   type: 'plain', channel: 'generic', api_key: process.env.TERMII_KEY,
   // });
 
-  console.warn('[OTP] SMS provider not configured — code:', code);
+  console.warn('[OTP] SMS provider not configured,  code:', code);
 }
 
 //  Verify OTP 

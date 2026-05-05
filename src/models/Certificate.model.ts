@@ -56,7 +56,7 @@ export const CertificateModel =
  * One quiz question surfaced each day on the dashboard.
  *
  * From: dashboard/page.tsx → DailyQuiz component
- * A citizen can answer once per day — their response stored in DailyChallengeAttempt.
+ * A citizen can answer once per day,  their response stored in DailyChallengeAttempt.
  */
 const DailyChallengeSchema = new Schema<IDailyChallenge>(
   {

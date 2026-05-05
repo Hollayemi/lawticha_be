@@ -1,5 +1,5 @@
 /**
- * Seed script — creates the LawTicha Super Admin.
+ * Seed script,  creates the LawTicha Super Admin.
  *
  * Usage:
  *   ts-node src/scripts/seed-admin.ts

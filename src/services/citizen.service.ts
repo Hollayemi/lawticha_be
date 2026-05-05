@@ -131,7 +131,7 @@ export async function updatePrivacy(
   return profile.save();
 }
 
-//  Award XP (via service — preferred over calling user.awardXP directly) 
+//  Award XP (via service,  preferred over calling user.awardXP directly) 
 
 export async function awardXP(
   userId: string,

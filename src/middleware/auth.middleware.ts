@@ -48,7 +48,7 @@ export const protect = asyncHandler(
       );
     }
 
-    // Verify token — throws if expired or tampered
+    // Verify token,  throws if expired or tampered
     let decoded: { id: string; role: UserRole; iat: number };
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET as string) as typeof decoded;
@@ -60,7 +60,7 @@ export const protect = asyncHandler(
       return next(new AppError(message, 401, 'UNAUTHORIZED'));
     }
 
-    // Fetch user — select sensitive fields needed for checks
+    // Fetch user,  select sensitive fields needed for checks
     const user = await UserModel.findById(decoded.id).select(
       '+passwordChangedAt +refreshToken'
     );
@@ -122,7 +122,7 @@ export const optionalAuth = asyncHandler(
         req.user = user;
       }
     } catch {
-      // Silently ignore — anonymous access continues
+      // Silently ignore,  anonymous access continues
     }
 
     next();
@@ -161,7 +161,7 @@ export const adminOnly = authorizeRoles(UserRole.ADMIN);
 /** Admin or Lawyer */
 export const adminOrLawyer = authorizeRoles(UserRole.ADMIN, UserRole.LAWYER);
 
-/** Verified lawyer only — also checks lawyerProfile.verificationStatus */
+/** Verified lawyer only,  also checks lawyerProfile.verificationStatus */
 export const verifiedLawyerOnly = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user || req.user.role !== UserRole.LAWYER) {

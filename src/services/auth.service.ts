@@ -34,7 +34,7 @@ export function sendTokenResponse(
   const accessToken  = user.signAccessToken();
   const refreshToken = user.signRefreshToken(); // also mutates user.refreshToken
 
-  // Persist the stored refresh token (fire-and-forget — don't block response)
+  // Persist the stored refresh token (fire-and-forget,  don't block response)
   user.save({ validateBeforeSave: false }).catch(console.error);
 
   res.cookie('refreshToken', refreshToken, {

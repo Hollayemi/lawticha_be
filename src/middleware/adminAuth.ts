@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-//  protectAdmin — verifies cookie or Bearer token 
+//  protectAdmin,  verifies cookie or Bearer token 
 
 export const protectAdmin = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {

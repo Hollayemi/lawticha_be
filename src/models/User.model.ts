@@ -9,7 +9,7 @@ import { IUser, UserRole } from './types';
 export interface IUserDocument extends Omit<IUser, '_id'>, Document {
   _id: Types.ObjectId;
 
-  // select: false — not returned unless explicitly requested
+  // select: false,  not returned unless explicitly requested
   password?: string;
   refreshToken?: string;
   passwordChangedAt?: Date;
@@ -66,7 +66,7 @@ export interface IUserDocument extends Omit<IUser, '_id'>, Document {
 export interface IUserModel extends Model<IUserDocument> {
   /** Find by email (no password selected) */
   findByEmail(email: string): Promise<IUserDocument | null>;
-  /** Find by email WITH password — for login only */
+  /** Find by email WITH password,  for login only */
   findByEmailWithPassword(email: string): Promise<IUserDocument | null>;
 }
 
@@ -106,7 +106,7 @@ const UserSchema = new Schema<IUserDocument>(
     googleId:  { type: String, unique: true, sparse: true },
     avatarUrl: { type: String },
 
-    // Credentials (select: false — never leaked in queries) 
+    // Credentials (select: false,  never leaked in queries) 
     password: {
       type:      String,
       minlength: [8, 'Password must be at least 8 characters'],
@@ -253,7 +253,7 @@ UserSchema.methods.toSafeObject = function (
 };
 
 // Instance method: award XP 
-// Convenience method — loads CitizenProfile lazily and applies XP + level-up.
+// Convenience method,  loads CitizenProfile lazily and applies XP + level-up.
 
 UserSchema.methods.awardXP = async function (
   this: IUserDocument,

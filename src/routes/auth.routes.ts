@@ -25,9 +25,6 @@ import {
 
 const router = Router();
 
-// PUBLIC — no token required
-// 
-
 /**
  * @route   POST /api/v1/auth/register
  * @desc    Create a new citizen or lawyer account
@@ -55,7 +52,7 @@ router.post('/refresh-token', refreshToken);
  * @route   GET /api/v1/auth/verify-email/:token
  * @desc    Verify email address from the link sent on registration
  * @access  Public
- * @param   token — raw token from the email link
+ * @param   token,  raw token from the email link
  */
 router.get('/verify-email/:token', verifyEmail);
 
@@ -79,13 +76,13 @@ router.post('/forgot-password', validateForgotPassword, forgotPassword);
  * @route   PATCH /api/v1/auth/reset-password/:token
  * @desc    Set a new password using the token from the reset email
  * @access  Public
- * @param   token — raw token from the email link
+ * @param   token,  raw token from the email link
  * @body    { password, confirmPassword }
  */
 router.patch('/reset-password/:token', validateResetPassword, resetPassword);
 
 // 
-// PROTECTED — valid access token required
+// PROTECTED,  valid access token required
 // 
 
 router.use(protect); // everything below this line is protected

@@ -96,7 +96,7 @@ const NotificationSchema = new Schema<INotification>(
     title:   { type: String, required: true },
     body:    { type: String },
 
-    // Deep link — where to go when notification is tapped
+    // Deep link,  where to go when notification is tapped
     linkPath: { type: String },  // "/dashboard/activities", "/dashboard/messages"
     refId:    { type: Schema.Types.ObjectId },  // consultation, module, etc.
     refType:  { type: String },                 // 'consultation', 'module', 'message'
