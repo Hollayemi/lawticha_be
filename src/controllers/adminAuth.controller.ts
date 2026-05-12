@@ -41,6 +41,7 @@ export const adminLoginHandler = asyncHandler(
       removedAt: null,
     }).select('+passwordHash');
 
+
     if (!admin || !admin.isActive) {
       return next(new AppError('Invalid credentials', 401, 'UNAUTHORIZED'));
     }
@@ -62,7 +63,7 @@ export const adminLoginHandler = asyncHandler(
           email: admin.email,
           role:  admin.role,
         },
-        token,
+        accessToken :token,
       },
       'Login successful'
     );

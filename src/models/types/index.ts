@@ -6,6 +6,7 @@ export enum UserRole {
   CITIZEN = 'citizen',
   LAWYER  = 'lawyer',
   ADMIN   = 'admin',
+  SUPER_ADMIN   = 'admin',
 }
 
 export enum ConsultMode {
@@ -62,13 +63,14 @@ export interface BaseModel {
 }
 
 // User 
-
+export type UserStatusVariant = "active" | "inactive" | "pending" | "suspended" | "approved" | "rejected" | "warning";
 export interface IUser extends BaseModel {
   email?: string;
   phone?: string;
   firstName: string;
   lastName: string;
   role: UserRole;
+  status: UserStatusVariant;
   authProvider: 'email' | 'google' | 'phone';
   googleId?: string;
   avatarUrl?: string;

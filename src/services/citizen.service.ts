@@ -1,7 +1,7 @@
 import { CitizenProfileModel, ICitizenProfileDocument } from '../models/CitizenProfile.model';
 import { UserModel } from '../models/User.model';
 import { AuditLogModel } from '../models/Admin.model';
-import { AuditAction } from '../models/types';
+import { AuditAction, UserStatusVariant } from '../models/types';
 import { AppError } from '../middleware/error';
 
 //  Types 
@@ -150,6 +150,7 @@ export async function awardXP(
 //  List citizens (admin) 
 
 export interface ListCitizensParams {
+  status?: string;
   search?:   string;
   page?:     number;
   pageSize?: number;
@@ -157,11 +158,12 @@ export interface ListCitizensParams {
 }
 
 export async function listCitizens(params: ListCitizensParams = {}) {
-  const { search, page = 1, pageSize = 20, isActive } = params;
+  const { search, page = 1, pageSize = 20, isActive, status } = params;
 
   const userFilter: Record<string, unknown> = { role: 'citizen' };
   if (isActive !== undefined) userFilter.isActive = isActive;
   if (search?.trim()) userFilter.$text = { $search: search.trim() };
+  if(status !== undefined) userFilter.status = status;
 
   const skip = (page - 1) * pageSize;
 
@@ -197,14 +199,14 @@ export async function getCitizenById(userId: string) {
 
 export async function updateCitizenStatus(
   userId: string,
-  action: 'suspend' | 'reactivate',
+  action: UserStatusVariant,
   reason: string,
   admin:  AdminCtx
 ) {
   const user = await UserModel.findOne({ _id: userId, role: 'citizen' });
   if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
 
-  user.isActive = action === 'reactivate';
+  user.isActive = action === 'active';
   await user.save({ validateBeforeSave: false });
 
   AuditLogModel.create({
@@ -217,7 +219,7 @@ export async function updateCitizenStatus(
   }).catch(() => null);
 
   return {
-    message: `Citizen ${action === 'suspend' ? 'suspended' : 'reactivated'}.`,
+    message: `Citizen ${action === 'suspended' ? 'suspended' : 'reactivated'}.`,
     userId,
     isActive: user.isActive,
   };

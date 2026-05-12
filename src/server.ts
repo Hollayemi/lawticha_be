@@ -68,31 +68,31 @@ app.get('/health', (_req, res) => {
 
 //  Route imports 
 
-// Legacy NURTW auth (keep if still needed)
+// Legacy LawTicha auth (keep if still needed)
 import authRoutes        from './routes/auth.routes';
+import citizenRoutes        from './routes/citizen.routes';
 // import adminRoutes       from './routes/admin.routes';
 
 // LawTicha admin
-import adminAuthRoutes   from './routes/adminAuth.routes';
-import citizenRoutes     from './routes/citizen.routes';
-import lawyerRoutes      from './routes/lawyer.routes';
+import adminAuthRoutes   from './routes/admin/auth.admin.routes';
+import adminCitizenRoutes     from './routes/admin/citizen.admin.routes';
+import lawyerRoutes      from './routes/admin/lawyer.admin.routes';
+import { seedAdmin } from './scripts/seed-super-admin';
 
-//  Mount routes 
-
-// Legacy NURTW
-app.use('/api/v1/auth',   authRoutes);
-// app.use('/api/v1/admin',  adminRoutes);
-
-// LawTicha Admin Auth
+// Legacy LawTicha
 app.use('/api/v1/auth/admin', adminAuthRoutes);
+app.use('/api/v1/auth',   authRoutes);
+app.use('/api/v1/citizen',   citizenRoutes);
 
 // LawTicha Admin Resource Routes
-app.use('/api/v1/admin/citizens', citizenRoutes);
+app.use('/api/v1/admin/citizens', adminCitizenRoutes);
 app.use('/api/v1/admin/lawyers',  lawyerRoutes);
 
 //  Error handling 
 app.use('*', handle404);
 app.use(errorHandler);
+
+// seedAdmin()
 
 //  Start 
 const server = app.listen(PORT, () => {

@@ -4,12 +4,10 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { IUser, UserRole } from './types';
 
-// Document interface (instance methods + select:false fields) 
+
 
 export interface IUserDocument extends Omit<IUser, '_id'>, Document {
   _id: Types.ObjectId;
-
-  // select: false,  not returned unless explicitly requested
   password?: string;
   refreshToken?: string;
   passwordChangedAt?: Date;
@@ -22,55 +20,20 @@ export interface IUserDocument extends Omit<IUser, '_id'>, Document {
   fullName: string;
 
   // Instance methods 
-
-  /** Compare a plain-text password against the stored bcrypt hash */
   matchPassword(entered: string): Promise<boolean>;
-
-  /** Sign a short-lived access JWT (15 min) */
   signAccessToken(): string;
-
-  /**
-   * Sign a long-lived refresh JWT (30 d) and persist the raw token on the
-   * document (call save() after to persist).
-   */
   signRefreshToken(): string;
-
-  /** Generate a raw password-reset token, hash + stamp expiry on the doc */
   getPasswordResetToken(): string;
-
-  /** Generate a raw email-verification token, hash + stamp expiry on the doc */
   getEmailVerificationToken(): string;
-
-  /**
-   * Returns true when the password was changed AFTER the JWT was issued.
-   * Used in the auth middleware to invalidate stale tokens.
-   */
   changedPasswordAfter(jwtIat: number): boolean;
-
-  /**
-   * Strip all sensitive / internal fields and return a plain object safe
-   * for inclusion in API responses.
-   */
   toSafeObject(): Record<string, unknown>;
-
-  /**
-   * Award XP to a citizen. Triggers a level-up check.
-   * No-op for non-citizen roles (does not throw).
-   * Returns the updated CitizenProfile or null.
-   */
   awardXP(points: number): Promise<import('./CitizenProfile.model').ICitizenProfileDocument | null>;
 }
 
-// Static methods 
-
 export interface IUserModel extends Model<IUserDocument> {
-  /** Find by email (no password selected) */
   findByEmail(email: string): Promise<IUserDocument | null>;
-  /** Find by email WITH password,  for login only */
   findByEmailWithPassword(email: string): Promise<IUserDocument | null>;
 }
-
-// Schema 
 
 const UserSchema = new Schema<IUserDocument>(
   {
@@ -124,6 +87,7 @@ const UserSchema = new Schema<IUserDocument>(
     emailVerificationExpires: { type: Date,   select: false },
 
     // Status flags 
+    status: { type: String, enum: ["active", "inactive", "pending", "approved", "rejected", "warning"], default: "active", index: true },
     isActive:    { type: Boolean, default: true,  index: true },
     isVerified:  { type: Boolean, default: false },
     lastLoginAt: { type: Date },
@@ -149,6 +113,8 @@ UserSchema.virtual('fullName').get(function (this: IUserDocument) {
 
 UserSchema.pre<IUserDocument>('save', async function (next) {
   if (!this.isModified('password') || !this.password) return next();
+
+  this.fullName = `${this.firstName} ${this.lastName}`
 
   const salt    = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);

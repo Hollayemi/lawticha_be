@@ -18,12 +18,12 @@
 
 import dotenv from 'dotenv';
 dotenv.config();
-
+import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import { UserModel } from '../models';
-import { UserRole } from '../models/types';
+import { AdminUserModel } from '../models';
+import { AdminRole } from '../models/types';
 
-async function seed() {
+ export async function seedAdmin() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     console.error('❌  MONGODB_URI is not set in .env');
@@ -33,20 +33,22 @@ async function seed() {
   await mongoose.connect(uri);
   console.log('✅  Connected to MongoDB');
 
-  const phone    = (process.env.SUPER_ADMIN_PHONE || '08000000000').trim();
-  const fullName = (process.env.SUPER_ADMIN_NAME  || 'NURTW Super Admin').trim();
+  const email    = (process.env.SUPER_ADMIN_EMAIL || 'admin@lawticha.com').trim();
+  const fullName = (process.env.SUPER_ADMIN_NAME  || 'Lawticha Admin').trim();
+  const salt    = await bcrypt.genSalt(12);
+  const password = await bcrypt.hash("access123", salt);
 
   // Check if super admin already exists
-  const existing = await UserModel.findOne({ phone });
+  const existing = await AdminUserModel.findOne({ email });
 
   if (existing) {
-    console.log(`\n⚠️   User with phone ${phone} already exists.`);
+    console.log(`\n⚠️   Admin with email ${email} already exists.`);
     console.log(`    Role: ${existing.role} | Active: ${existing.isActive}`);
 
-    if (existing.role !== UserRole.SUPER_ADMIN) {
+    if (existing.role !== AdminRole.SUPER_ADMIN) {
       console.error('    ❌  That phone belongs to a non-super-admin user. Use a different number.');
     } else {
-      console.log('    ✅  Super admin already seeded,  nothing to do.');
+      console.log('    ✅  Super admin already Admined,  nothing to do.');
     }
 
     await mongoose.disconnect();
@@ -54,10 +56,11 @@ async function seed() {
   }
 
   // Create the super admin user,  no password, no separate profile doc
-  const user = await UserModel.create({
-    phone,
-    fullName,
-    role: UserRole.SUPER_ADMIN,
+  const user = await AdminUserModel.create({
+    email,
+    name: fullName,
+    passwordHash: password,
+    role: AdminRole.SUPER_ADMIN,
     isActive: true,
   });
 
@@ -66,17 +69,17 @@ async function seed() {
   
   ID:     ${user._id}
   Name:   ${fullName}
-  Phone:  ${phone}
+  Phone:  ${email}
   Role:   ${user.role}
   
-  To log in, hit POST /api/v1/auth/send-otp with { "phone": "${phone}" }
+  To log in, hit POST /api/v1/auth/send-otp with { "phone": "${email}" }
   then POST /api/v1/auth/verify-otp with the 6-digit code.
   `);
 
   await mongoose.disconnect();
 }
 
-seed().catch((err) => {
+seedAdmin().catch((err) => {
   console.error('❌  Seed failed:', err.message);
   process.exit(1);
 });

@@ -14,16 +14,13 @@ declare global {
   }
 }
 
-//  Token extraction helper 
-
 function extractToken(req: Request): string | null {
-  // 1. Authorization: Bearer <token>
   if (req.headers.authorization?.startsWith('Bearer ')) {
     return req.headers.authorization.split(' ')[1];
   }
-  // 2. Cookie (for browser clients)
-  if (req.cookies?.accessToken) {
-    return req.cookies.accessToken;
+
+  if (req.cookies?.token) {
+    return req.cookies.token;
   }
   return null;
 }
@@ -41,6 +38,8 @@ function extractToken(req: Request): string | null {
 export const protect = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
     const token = extractToken(req);
+
+    console.log(token)
 
     if (!token) {
       return next(

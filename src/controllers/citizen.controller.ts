@@ -7,6 +7,7 @@ import {
   emailCitizen,
 } from '../services/citizen.service';
 import { CitizenStatus } from '../models/types/lawticha.types';
+import { UserStatusVariant } from '../models';
 
 
 function adminCtx(req: Request) {
@@ -32,8 +33,8 @@ export const listCitizensHandler = asyncHandler(
       search,
       page:      page     ? Number(page)     : undefined,
       pageSize:  pageSize ? Number(pageSize)  : undefined,
-      sortBy,
-      sortOrder: sortOrder as 'asc' | 'desc',
+      // sortBy,
+      // sortOrder: sortOrder as 'asc' | 'desc',
     });
 
     return (res as AppResponse).data(result, 'Citizens fetched');
@@ -60,7 +61,7 @@ export const updateCitizenStatusHandler = asyncHandler(
 
     const result = await updateCitizenStatus(
       req.params.id,
-      status as CitizenStatus,
+      status as UserStatusVariant,
       reason,
       adminCtx(req)
     );

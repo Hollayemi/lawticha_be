@@ -29,7 +29,7 @@ const router = Router();
  * @route   POST /api/v1/auth/register
  * @desc    Create a new citizen or lawyer account
  * @access  Public
- * @body    { firstName, lastName, email, password, phone?, role? }
+ * @body    { firstName, lastName, email, password, phone?, role }
  */
 router.post('/register', validateRegister, register);
 

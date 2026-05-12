@@ -61,20 +61,28 @@ export async function getLawyerProfile(userId: string) {
 }
 
 //  Submit / resubmit verification 
-
 export async function submitVerification(
   userId: string,
-  input:  SubmitVerificationInput
+  input: SubmitVerificationInput
 ) {
-  const profile = await LawyerProfileModel.findOne({ userId });
-  if (!profile) throw new AppError('Lawyer profile not found.', 404, 'NOT_FOUND');
-
+  let profile = await LawyerProfileModel.findOne({ userId });
+  
+  // Create profile if it doesn't exist
+  if (!profile) {
+    profile = new LawyerProfileModel({ 
+      userId,
+      fees: {},
+      verificationStatus: VerificationStatus.PENDING 
+    });
+  }
+  
   // Block resubmission if already in progress beyond credential_check
   const blocked: VerificationStatus[] = [
     VerificationStatus.TRAINING,
     VerificationStatus.ASSESSMENT,
     VerificationStatus.VERIFIED,
   ];
+  
   if (blocked.includes(profile.verificationStatus)) {
     throw new AppError(
       'Your verification is already in progress and cannot be resubmitted at this stage.',
@@ -82,8 +90,8 @@ export async function submitVerification(
       'VERIFICATION_IN_PROGRESS'
     );
   }
-
-  // Apply optional profile fields before submitting
+  
+  // Update fields
   if (input.title)     profile.title     = input.title;
   if (input.bio)       profile.bio       = input.bio;
   if (input.location)  profile.location  = input.location;
@@ -91,11 +99,14 @@ export async function submitVerification(
   if (input.stateCode) profile.stateCode = input.stateCode;
   if (input.languages) profile.languages = input.languages;
   if (input.fees) {
-    profile.fees.message = input.fees.message ?? profile.fees.message;
-    profile.fees.call    = input.fees.call    ?? profile.fees.call;
-    profile.fees.video   = input.fees.video   ?? profile.fees.video;
+    profile.fees = {
+      message: input.fees.message ?? profile.fees?.message,
+      call:    input.fees.call    ?? profile.fees?.call,
+      video:   input.fees.video   ?? profile.fees?.video,
+    };
   }
-
+  
+  // Submit verification (handles both create and update internally)
   await profile.submitVerification({
     nbaNumber:   input.nbaNumber,
     yearOfCall:  input.yearOfCall,
@@ -103,7 +114,9 @@ export async function submitVerification(
     specialisms: input.specialisms,
     documents:   input.documents,
   });
-
+  
+  await profile.save();
+  
   return { message: 'Verification submitted successfully.', profile };
 }
 
@@ -248,7 +261,6 @@ export async function listLawyers(params: ListLawyersParams = {}) {
 
   const skip = (page - 1) * pageSize;
 
-  // For text search, we search the User collection and then join
   let userIds: Types.ObjectId[] | undefined;
   if (search?.trim()) {
     const users = await UserModel.find(
@@ -265,7 +277,7 @@ export async function listLawyers(params: ListLawyersParams = {}) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageSize)
-      .populate('userId', 'firstName lastName email avatarUrl isActive lastLoginAt'),
+      .populate('userId', 'firstName fullName lastName email avatarUrl isActive lastLoginAt'),
     LawyerProfileModel.countDocuments(filter),
   ]);
 

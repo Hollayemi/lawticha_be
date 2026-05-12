@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { protectAdmin } from '../middleware/adminAuth';
+import { protectAdmin } from '../../middleware/adminAuth';
 import {
   listLawyersHandler,
   getLawyerHandler,
   updateLawyerStatusHandler,
   emailLawyerHandler,
-} from '../controllers/lawyer.controller';
+  submitVerificationHandler,
+} from '../../controllers/lawyer.controller';
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.patch('/:id/status', updateLawyerStatusHandler);
 
 // POST  /admin/lawyers/:id/email ,  send direct email
 router.post('/:id/email', emailLawyerHandler);
+
 
 export default router;
