@@ -77,16 +77,20 @@ import citizenRoutes        from './routes/citizen.routes';
 import adminAuthRoutes   from './routes/admin/auth.admin.routes';
 import adminCitizenRoutes     from './routes/admin/citizen.admin.routes';
 import lawyerRoutes      from './routes/admin/lawyer.admin.routes';
-import { seedAdmin } from './scripts/seed-super-admin';
+import modulesRoutes      from './routes/admin/module.admin.routes';
+import adminRoutes      from './routes/admin/admin.routes';
+// import { seedAdmin } from './scripts/seed-super-admin';
 
 // Legacy LawTicha
 app.use('/api/v1/auth/admin', adminAuthRoutes);
+app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/auth',   authRoutes);
 app.use('/api/v1/citizen',   citizenRoutes);
 
 // LawTicha Admin Resource Routes
 app.use('/api/v1/admin/citizens', adminCitizenRoutes);
 app.use('/api/v1/admin/lawyers',  lawyerRoutes);
+app.use('/api/v1/admin/modules',  modulesRoutes);
 
 //  Error handling 
 app.use('*', handle404);

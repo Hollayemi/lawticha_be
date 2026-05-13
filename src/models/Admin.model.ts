@@ -1,7 +1,5 @@
 import { Schema, model, models, Document, Types } from 'mongoose';
-import { IAdminUser, IAuditLog, AdminRole, AuditAction } from './types';
-
-// Admin User document 
+import { IAdminUser, IAuditLog, AdminRole, AuditAction } from './types'; 
 
 export interface IAdminUserDocument extends Omit<IAdminUser, '_id'>, Document {
   _id: Types.ObjectId;

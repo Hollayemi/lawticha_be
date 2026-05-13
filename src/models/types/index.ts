@@ -39,19 +39,71 @@ export enum LawyerBadge {
 }
 
 export enum AuditAction {
-  CITIZEN_STATUS_CHANGED    = 'citizen_status_changed',
-  CITIZEN_EMAIL_SENT        = 'citizen_email_sent',
-  LAWYER_STATUS_CHANGED     = 'lawyer_status_changed',
-  LAWYER_EMAIL_SENT         = 'lawyer_email_sent',
-  VERIFICATION_APPROVED     = 'verification_approved',
-  VERIFICATION_REJECTED     = 'verification_rejected',
-  VERIFICATION_INFO_REQUEST = 'verification_info_request',
-  DOCUMENT_VERIFIED         = 'document_verified',
+  LOGIN = "login",
+  LOGOUT = "logout",
+  PASSWORD_CHANGE = "password_change",
+
+  // Admin management
+  ADMIN_CREATED = "admin_created",
+  ADMIN_UPDATED = "admin_updated",
+  ADMIN_ACTIVATED = "admin_activated",
+  ADMIN_DEACTIVATED = "admin_deactivated",
+  ADMIN_REMOVED = "admin_removed",
+  ROLE_CHANGED = "role_changed",
+
+  // Module actions
+  MODULE_CREATED = "module_created",
+  MODULE_UPDATED = "module_updated",
+  MODULE_DELETED = "module_deleted",
+  MODULE_PUBLISHED = "module_published",
+
+  // Topic actions
+  TOPIC_CREATED = "topic_created",
+  TOPIC_UPDATED = "topic_updated",
+  TOPIC_DELETED = "topic_deleted",
+
+  // Content actions
+  CONTENT_UPLOADED = "content_uploaded",
+  CONTENT_DELETED = "content_deleted",
+
+  // User actions
+  CITIZEN_SUSPENDED = "citizen_suspended",
+  CITIZEN_ACTIVATED = "citizen_activated",
+  LAWYER_VERIFIED = "lawyer_verified",
+  LAWYER_REJECTED = "lawyer_rejected",
+
+  // Comment actions
+  COMMENT_RESOLVED = "comment_resolved",
+  COMMENT_DELETED = "comment_deleted",
+}
+
+export type OnboardingStep =
+  | "welcome"
+  | "accept_terms"
+  | "profile"
+  | "training"
+  | "complete";
+
+export interface IAdminOnboardingState {
+  currentStep: OnboardingStep;
+  acceptedTerms: boolean;
+  profileCompleted: boolean;
+  trainingCompleted: boolean;
+  hasCompletedOnboarding: boolean;
+  onboardingData: {
+    name?: string;
+    email?: string;
+    role?: AdminRole;
+  };
 }
 
 export enum AdminRole {
-  SUPER_ADMIN = 'super_admin',
-  ADMIN       = 'admin',
+  SUPER_ADMIN = "super_admin",
+  ADMIN = "admin",
+  INSTRUCTOR = "instructor",
+  MODERATOR = "moderator",
+  ANALYST = "analyst",
+  SUPPORT = "support",
 }
 
 // Base 
@@ -214,15 +266,24 @@ export interface ILawyerProfile extends BaseModel {
 
 // Admin User 
 
-export interface IAdminUser extends BaseModel {
+export interface IAdminUser extends BaseModel  {
   name: string;
   email: string;
   passwordHash: string;
   role: AdminRole;
   isActive: boolean;
-  lastLogin?: Date;
-  removedAt?: Date;
-  removedBy?: ObjectId;
+  lastLogin: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  removedAt: Date | null;
+  removedBy: Types.ObjectId | null;
+  onboardingCompleted: boolean;
+  onboardingStep: OnboardingStep;
+  acceptedTermsAt: Date | null;
+  profileCompletedAt: Date | null;
+  trainingCompletedAt: Date | null;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
 }
 
 // Audit Log 
@@ -233,7 +294,7 @@ export interface IAuditLog extends BaseModel {
   action: AuditAction;
   targetType: 'citizen' | 'lawyer' | 'verification' | 'document';
   targetId: ObjectId | string;
-  meta?: Record<string, unknown>;
+  meta?: any;
 }
 
 // OTP 

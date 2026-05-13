@@ -16,6 +16,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*", "./**/*.ts", "./**/*.tsx", "index.ts"],
+  "include": ["src/**/*", "./**/*.ts", "./**/*.tsx", "index.ts", "../../Next/UnderstandLaw/redux/slices/admin/admin.slice.ts"],
   "exclude": ["node_modules", "dist"]
 }
