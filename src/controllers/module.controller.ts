@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { asyncHandler, AppError, AppResponse } from "../middleware/error";
+
 import {
   listModules,
   getModuleStats,
@@ -186,7 +187,7 @@ export const deleteModuleHandler = asyncHandler(
  */
 export const listTopicsHandler = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const topics = await listTopics(req.params.moduleId);
+    const topics = await listTopics(req.params.moduleId, req.query?.status as any || "");
     return (res as AppResponse).data(topics, "Topics fetched successfully.");
   }
 );

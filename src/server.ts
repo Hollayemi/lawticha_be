@@ -57,10 +57,10 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/health', (_req, res) => {
   (res as any).data(
     {
-      status:      'OK',
-      timestamp:   new Date().toISOString(),
+      status: 'OK',
+      timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
-      uptime:      process.uptime(),
+      uptime: process.uptime(),
     },
     'Server is healthy'
   );
@@ -68,29 +68,38 @@ app.get('/health', (_req, res) => {
 
 //  Route imports 
 
+import learnRoutes from './routes/learn.routes';
+import communityRoutes from './routes/community.routes';
+
 // Legacy LawTicha auth (keep if still needed)
-import authRoutes        from './routes/auth.routes';
-import citizenRoutes        from './routes/citizen.routes';
+import authRoutes from './routes/auth.routes';
+import citizenRoutes from './routes/citizen.routes';
 // import adminRoutes       from './routes/admin.routes';
 
 // LawTicha admin
-import adminAuthRoutes   from './routes/admin/auth.admin.routes';
-import adminCitizenRoutes     from './routes/admin/citizen.admin.routes';
-import lawyerRoutes      from './routes/admin/lawyer.admin.routes';
-import modulesRoutes      from './routes/admin/module.admin.routes';
-import adminRoutes      from './routes/admin/admin.routes';
+import adminAuthRoutes from './routes/admin/auth.admin.routes';
+import adminCitizenRoutes from './routes/admin/citizen.admin.routes';
+import lawyerRoutes from './routes/admin/lawyer.admin.routes';
+import modulesRoutes from './routes/admin/module.admin.routes';
+import adminRoutes from './routes/admin/admin.routes';
 // import { seedAdmin } from './scripts/seed-super-admin';
+
+
+// Public
+app.use('/api/v1/learn', learnRoutes);
+app.use('/api/v1/community', communityRoutes);
+
 
 // Legacy LawTicha
 app.use('/api/v1/auth/admin', adminAuthRoutes);
 app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/auth',   authRoutes);
-app.use('/api/v1/citizen',   citizenRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/citizen', citizenRoutes);
 
 // LawTicha Admin Resource Routes
 app.use('/api/v1/admin/citizens', adminCitizenRoutes);
-app.use('/api/v1/admin/lawyers',  lawyerRoutes);
-app.use('/api/v1/admin/modules',  modulesRoutes);
+app.use('/api/v1/admin/lawyers', lawyerRoutes);
+app.use('/api/v1/admin/modules', modulesRoutes);
 
 //  Error handling 
 app.use('*', handle404);

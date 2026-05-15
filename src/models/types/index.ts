@@ -117,7 +117,7 @@ export interface BaseModel {
 // User 
 export type UserStatusVariant = "active" | "inactive" | "pending" | "suspended" | "approved" | "rejected" | "warning";
 export interface IUser extends BaseModel {
-  email?: string;
+  email: string;
   phone?: string;
   firstName: string;
   lastName: string;

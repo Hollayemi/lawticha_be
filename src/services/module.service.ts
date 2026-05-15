@@ -335,8 +335,10 @@ export async function deleteModule(id: string) {
 
 //  TOPIC CRUD 
 
-export async function listTopics(moduleId: string) {
-  const topics = await TopicModel.find({ moduleId }).sort({ order: 1 });
+export async function listTopics(moduleId: string, status?:string) {
+  const filter = {} as any
+  if(status) filter.status = status
+  const topics = await TopicModel.find({ moduleId, ...filter }).sort({ order: 1 });
 
   const topicIds = topics.map((t) => t._id);
 
