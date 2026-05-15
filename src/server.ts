@@ -10,7 +10,6 @@ import connectDB from './config/database';
 import {
   errorHandler,
   handle404,
-  // jsonParseErrorHandler,
   extendResponse,
 } from './middleware/error';
 
@@ -34,7 +33,6 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-//  Core middleware 
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3000' || "https://lawticha.vercel.app" ,
@@ -105,7 +103,7 @@ app.use('/api/v1/admin/modules', modulesRoutes);
 app.use('*', handle404);
 app.use(errorHandler);
 
-// seedAdmin()
+seedAdmin()
 
 //  Start 
 const server = app.listen(PORT, () => {
