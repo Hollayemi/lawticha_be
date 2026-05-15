@@ -80,7 +80,7 @@ import adminCitizenRoutes from './routes/admin/citizen.admin.routes';
 import lawyerRoutes from './routes/admin/lawyer.admin.routes';
 import modulesRoutes from './routes/admin/module.admin.routes';
 import adminRoutes from './routes/admin/admin.routes';
-// import { seedAdmin } from './scripts/seed-super-admin';
+import { seedAdmin } from './scripts/seed-super-admin';
 
 
 // Public
