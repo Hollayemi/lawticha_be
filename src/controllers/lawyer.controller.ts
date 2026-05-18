@@ -131,10 +131,10 @@ export const advanceVerificationHandler = asyncHandler(
 // POST /api/v1/admin/lawyers/:id/verification/reject
 export const rejectVerificationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { reason } = req.body;
-    if (!reason?.trim()) return next(new AppError('A rejection reason is required.', 400, 'VALIDATION_ERROR'));
+    const { reason, infoNeeded } = req.body;
+    if (!reason?.trim()) return next(new AppError('A reason is required.', 400, 'VALIDATION_ERROR'));
 
-    const result = await rejectVerification(req.params.id, adminCtx(req), reason);
+    const result = await rejectVerification(req.params.id, adminCtx(req), reason, Boolean(infoNeeded));
     return (res as AppResponse).data(result, result.message);
   }
 );

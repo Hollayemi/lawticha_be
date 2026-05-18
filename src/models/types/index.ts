@@ -25,10 +25,11 @@ export enum ConsultStatus {
 
 export enum VerificationStatus {
   PENDING          = 'pending',
+  INFO_NEEDED      = 'info_requested',
   CREDENTIAL_CHECK = 'credential_check',
   TRAINING         = 'training',
   ASSESSMENT       = 'assessment',
-  VERIFIED         = 'verified',
+  VERIFIED         = 'approved',
   REJECTED         = 'rejected',
 }
 
@@ -75,6 +76,13 @@ export enum AuditAction {
   // Comment actions
   COMMENT_RESOLVED = "comment_resolved",
   COMMENT_DELETED = "comment_deleted",
+
+  // lawyer actions
+  VERIFICATION_APPROVED = "verification_approved",
+  VERIFICATION_INFO_REQUEST = "verification_info_request",
+  VERIFICATION_REJECTED = "verification_rejected",
+  DOCUMENT_VERIFIED  = "document_verified",
+  LAWYER_STATUS_CHANGED  = "lawyer_status_changed" 
 }
 
 export type OnboardingStep =

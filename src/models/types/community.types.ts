@@ -2,19 +2,22 @@ import { Types } from 'mongoose';
 
 export type CommunityRoomType = 'general' | 'legal-advice' | 'case-study' | 'law-students' | 'lawyers-lounge' | 'ask-lawyer';
 export type ReferenceType = 'module' | 'topic' | 'subtopic';
+export type PostType = 'discussion' | 'argument' | 'poll' | 'announcement' | 'case_study';
+export type PostStatus = 'active' | 'pending' | 'promoted' | 'rejected' | 'removed';
 export type UserRole = 'citizen' | 'lawyer' | 'admin' | 'moderator';
+export type ResolutionAction = 'dismiss' | 'remove_post' | 'warn_user' | 'ban_user';
 
 export interface CommunityUser {
   userId: Types.ObjectId;
   name: string;
   email: string;
   avatar?: string;
-  specialisms: [];
   role: UserRole;
   isVerified: boolean;
   badge?: string;
   lawFirm?: string;
   yearsOfExperience?: number;
+  specialisms?: string[];
 }
 
 export interface CommunityReference {
@@ -31,8 +34,45 @@ export interface CommunityReference {
   thumbnail?: string;
 }
 
-export interface ICommunityComment {
+export interface PostReport {
   _id: Types.ObjectId;
+  reporterId: Types.ObjectId;
+  reporterName: string;
+  reason: string;
+  description?: string;
+  createdAt: Date;
+  resolved: boolean;
+  resolvedAt?: Date;
+  resolvedBy?: Types.ObjectId;
+  resolutionNote?: string;
+  resolutionAction?: ResolutionAction;
+}
+
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: number;
+  votedBy: Types.ObjectId[];
+}
+
+export interface CommentReport {
+  reporterId: Types.ObjectId;
+  reporterName?: string;
+  reason: string;
+  description?: string;
+  createdAt: Date;
+  resolved: boolean;
+  resolvedAt?: Date;
+  resolvedBy?: Types.ObjectId;
+  resolutionNote?: string;
+}
+
+export interface EditHistory {
+  content: string;
+  editedAt: Date;
+}
+
+export interface ICommunityComment extends Document {
   postId: Types.ObjectId;
   content: string;
   author: CommunityUser;
@@ -43,19 +83,26 @@ export interface ICommunityComment {
   replies: Types.ObjectId[];
   isLawyerAnswer: boolean;
   isAcceptedAnswer: boolean;
+  isRemoved: boolean;
+  removalReason?: string;
+  removedAt?: Date;
+  removedBy?: Types.ObjectId;
   isEdited: boolean;
   editedAt?: Date;
+  editHistory: EditHistory[];
+  reports: CommentReport[];
+  flagged: boolean;
+  flagReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface ICommunityPost {
-  _id: Types.ObjectId;
+export interface ICommunityPost extends Document {
   title: string;
   content: string;
   author: CommunityUser;
   room: CommunityRoomType;
-  reference?: CommunityReference;
+  reference: CommunityReference | null;
   tags: string[];
   images: string[];
   likes: number;
@@ -63,17 +110,49 @@ export interface ICommunityPost {
   comments: Types.ObjectId[];
   commentCount: number;
   viewCount: number;
+  shares: number;
+  bookmarks: number;
+  bookmarkedBy: Types.ObjectId[];
+  status: PostStatus;
+  type: PostType;
   isPinned: boolean;
+  pinnedAt?: Date;
+  pinnedBy?: Types.ObjectId;
   isLocked: boolean;
+  lockedAt?: Date;
+  lockedBy?: Types.ObjectId;
   isResolved: boolean;
   resolvedBy?: Types.ObjectId;
   resolvedAt?: Date;
+  isPromoted: boolean;
+  promotedAt?: Date;
+  promotedUntil?: Date;
+  promotedBy?: Types.ObjectId;
+  approvedAt?: Date;
+  approvedBy?: Types.ObjectId;
+  rejectedAt?: Date;
+  rejectedBy?: Types.ObjectId;
+  rejectionReason?: string;
+  reportCount: number;
+  reports: PostReport[];
+  adminNote?: string;
+  pollOptions?: PollOption[];
   lastActivityAt: Date;
+  aiModerated: boolean;
+  aiModerationScore?: number;
+  aiModerationFlags?: string[];
   createdAt: Date;
   updatedAt: Date;
+  
+  // Virtuals
+  referencePath?: string | null;
+  engagementScore?: number;
+  
+  // Methods
+  addReport(reporterId: string, reporterName: string, reason: string, description?: string): Promise<ICommunityPost>;
+  resolveReport(reportId: Types.ObjectId, resolvedBy: string, action: string, note?: string): Promise<ICommunityPost>;
 }
 
-// DTOs
 export interface CreatePostInput {
   title: string;
   content: string;
@@ -88,29 +167,12 @@ export interface CreatePostInput {
     topicTitle?: string;
   };
   tags: string[];
-  images?: any[];
 }
 
 export interface CreateCommentInput {
   content: string;
-  images?: any[];
   parentId?: string;
 }
-
-export interface ListPostsQuery {
-  room?: CommunityRoomType;
-  sort?: 'latest' | 'popular' | 'trending' | 'unanswered';
-  search?: string;
-  tag?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface AdminCtx {
-  adminId: string;
-  adminName: string;
-}
-
 // Room metadata
 export const COMMUNITY_ROOMS: Record<CommunityRoomType, { name: string; description: string; icon: string; color: string; allowedRoles: UserRole[] }> = {
   'general': {

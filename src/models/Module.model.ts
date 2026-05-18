@@ -19,6 +19,7 @@ export interface ISubTopic {
   topicId:         Types.ObjectId;
   moduleId:        Types.ObjectId;
   title:           string;
+  slug:            string;
   notes:           string;   // instructor script – admin only
   duration:        string;   // e.g. "4:32"
   durationSeconds: number;
@@ -34,6 +35,7 @@ const SubTopicSchema = new Schema<ISubTopic>(
     topicId:         { type: Schema.Types.ObjectId, ref: 'AdminTopic', required: true, index: true },
     moduleId:        { type: Schema.Types.ObjectId, ref: 'AdminModule', required: true, index: true },
     title:           { type: String, required: true, trim: true },
+    slug:           { type: String, required: true, trim: true },
     notes:           { type: String, default: '' },
     duration:        { type: String, default: '0:00' },
     durationSeconds: { type: Number, default: 0 },
@@ -57,6 +59,7 @@ export interface ITopic {
   _id:            Types.ObjectId;
   moduleId:       Types.ObjectId;
   title:          string;
+  slug :          string;
   classification: string;
   overview:       string;
   status:         TopicStatus;
@@ -80,6 +83,7 @@ const TopicSchema = new Schema<ITopic>(
   {
     moduleId:       { type: Schema.Types.ObjectId, ref: 'AdminModule', required: true, index: true },
     title:          { type: String, required: true, trim: true },
+    slug:          { type: String, required: true, trim: true },
     classification: { type: String, default: '' },
     overview:       { type: String, default: '' },
     status:         { type: String, enum: ['published', 'draft', 'pending'], default: 'draft' },
@@ -110,6 +114,7 @@ export const TopicModel =
 export interface IModule {
   _id:                Types.ObjectId;
   title:              string;
+  slug:               string;
   category:           ModuleCategory;
   status:             ModuleStatus;
   thumbnail:          string | null;
@@ -132,6 +137,7 @@ export interface IModule {
 const ModuleSchema = new Schema<IModule>(
   {
     title:       { type: String, required: true, trim: true },
+    slug:        { type: String, required: true, trim: true },
     category:    {
       type: String,
       required: true,

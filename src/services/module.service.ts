@@ -16,6 +16,7 @@ import {
 import { EnrollmentModel, UserProgressModel } from '../models/Enrollment.model';
 import { UserModel } from '../models/User.model';
 import { AppError } from '../middleware/error';
+import { generateSlug } from '../utils/functions';
 
 //  Helpers 
 
@@ -264,6 +265,7 @@ export async function createModule(input: CreateModuleInput) {
 
   const doc = await ModuleModel.create({
     title:              input.title,
+    slug:               generateSlug(input.title),
     category:           input.category,
     description:        input.description,
     instructorId:       new Types.ObjectId(input.instructorId),
@@ -293,7 +295,10 @@ export async function updateModule(id: string, input: UpdateModuleInput) {
 
   const updates: Partial<IModule> = {};
 
-  if (input.title       !== undefined) updates.title       = input.title;
+  if (input.title       !== undefined) {
+    updates.title       = input.title;
+    updates.slug       = generateSlug(input.title);
+  }
   if (input.category    !== undefined) updates.category    = input.category;
   if (input.description !== undefined) updates.description = input.description;
   if (input.status      !== undefined) updates.status      = input.status;
@@ -407,6 +412,7 @@ export async function createTopic(input: CreateTopicInput) {
   const doc = await TopicModel.create({
     moduleId:       new Types.ObjectId(input.moduleId),
     title:          input.title,
+    slug:           generateSlug(input.title),
     classification: input.classification,
     overview:       input.overview,
     status:         input.status ?? 'draft',
@@ -440,7 +446,10 @@ export async function updateTopic(moduleId: string, topicId: string, input: Upda
   if (!topic) throw new AppError('Topic not found.', 404, 'NOT_FOUND');
 
   const updates: Partial<ITopic> = {};
-  if (input.title          !== undefined) updates.title          = input.title;
+  if (input.title          !== undefined) {
+    updates.title          = input.title; 
+    updates.slug           = generateSlug(input.title); 
+  }
   if (input.classification !== undefined) updates.classification = input.classification;
   if (input.overview       !== undefined) updates.overview       = input.overview;
   if (input.status         !== undefined) updates.status         = input.status;
@@ -510,6 +519,7 @@ export async function createSubTopic(input: CreateSubTopicInput) {
     topicId:  new Types.ObjectId(input.topicId),
     moduleId: new Types.ObjectId(input.moduleId),
     title:    input.title,
+    slug:     generateSlug(input.title),
     notes:    input.notes ?? '',
     duration: input.duration ?? '0:00',
     order,
@@ -535,7 +545,10 @@ export async function updateSubTopic(
   if (!doc) throw new AppError('SubTopic not found.', 404, 'NOT_FOUND');
 
   const updates: Partial<ISubTopic> = {};
-  if (input.title    !== undefined) updates.title    = input.title;
+  if (input.title    !== undefined) {
+    updates.title    = input.title;
+    updates.slug    = generateSlug(input.title);
+  }
   if (input.notes    !== undefined) updates.notes    = input.notes;
   if (input.duration !== undefined) updates.duration = input.duration;
   if (input.order    !== undefined) updates.order    = input.order;
@@ -582,7 +595,6 @@ export async function reorderSubTopics(
   await Promise.all(ops);
 }
 
-//  ACTIVITY 
 
 export async function getModuleActivity(
   moduleId: string, limit = 20, before?: string

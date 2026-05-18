@@ -77,6 +77,7 @@ import citizenRoutes from './routes/citizen.routes';
 // LawTicha admin
 import adminAuthRoutes from './routes/admin/auth.admin.routes';
 import adminCitizenRoutes from './routes/admin/citizen.admin.routes';
+import adminCommunityRoutes from './routes/admin/community.admin.routes';
 import lawyerRoutes from './routes/admin/lawyer.admin.routes';
 import modulesRoutes from './routes/admin/module.admin.routes';
 import adminRoutes from './routes/admin/admin.routes';
@@ -91,6 +92,7 @@ app.use('/api/v1/community', communityRoutes);
 // Legacy LawTicha
 app.use('/api/v1/auth/admin', adminAuthRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin/community', adminCommunityRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/citizen', citizenRoutes);
 
@@ -103,7 +105,7 @@ app.use('/api/v1/admin/modules', modulesRoutes);
 app.use('*', handle404);
 app.use(errorHandler);
 
-seedAdmin()
+// seedAdmin()
 
 //  Start 
 const server = app.listen(PORT, () => {

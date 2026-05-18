@@ -39,6 +39,11 @@ export interface ILawyerProfileDocument extends Omit<ILawyerProfile, '_id'>, Doc
     reason: string
   ): Promise<ILawyerProfileDocument>;
 
+  infoNeededVerification(
+    adminId: Types.ObjectId,
+    reason: string
+  ): Promise<ILawyerProfileDocument>;
+
   /**
    * Mark a specific document as verified (true) or failed (false).
    */
@@ -239,7 +244,7 @@ LawyerProfileSchema.methods.advanceVerification = async function (
   }
 
   const next = VERIFICATION_STAGES[currentIdx + 1];
-  this.verificationStatus       = next;
+  this.verificationStatus       = VerificationStatus.VERIFIED;
   this.verificationReviewedBy   = adminId;
   this.verificationReviewedAt   = new Date();
   if (note) this.verificationAdminNote = note;
@@ -263,6 +268,18 @@ LawyerProfileSchema.methods.rejectVerification = async function (
   reason: string
 ): Promise<ILawyerProfileDocument> {
   this.verificationStatus           = VerificationStatus.REJECTED;
+  this.verificationRejectedReason   = reason;
+  this.verificationReviewedBy       = adminId;
+  this.verificationReviewedAt       = new Date();
+  this.isAvailable                  = false;
+  return this.save();
+};
+LawyerProfileSchema.methods.infoNeededVerification = async function (
+  this: ILawyerProfileDocument,
+  adminId: Types.ObjectId,
+  reason: string
+): Promise<ILawyerProfileDocument> {
+  this.verificationStatus           = VerificationStatus.INFO_NEEDED;
   this.verificationRejectedReason   = reason;
   this.verificationReviewedBy       = adminId;
   this.verificationReviewedAt       = new Date();

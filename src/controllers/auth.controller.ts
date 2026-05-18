@@ -38,9 +38,9 @@ export const register = asyncHandler(
 
     const user = await UserModel.create({
       firstName: firstName.trim(),
-      lastName:  lastName.trim(),
-      email:     email?.toLowerCase().trim(),
-      phone:     phone?.trim(),
+      lastName: lastName.trim(),
+      email: email?.toLowerCase().trim(),
+      phone: phone?.trim(),
       password,
       role,
       authProvider: 'email',
@@ -152,7 +152,7 @@ export const verifyEmail = asyncHandler(
     const hashedToken = hashToken(req.params.token);
 
     const user = await UserModel.findOne({
-      emailVerificationToken:   hashedToken,
+      emailVerificationToken: hashedToken,
       emailVerificationExpires: { $gt: new Date() },
     }).select('+emailVerificationToken +emailVerificationExpires');
 
@@ -160,8 +160,8 @@ export const verifyEmail = asyncHandler(
       return next(new AppError('Verification link is invalid or has expired.', 400, 'INVALID_TOKEN'));
     }
 
-    user.isVerified               = true;
-    user.emailVerificationToken   = undefined;
+    user.isVerified = true;
+    user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
@@ -232,7 +232,7 @@ export const resetPassword = asyncHandler(
     const hashedToken = hashToken(req.params.token);
 
     const user = await UserModel.findOne({
-      passwordResetToken:   hashedToken,
+      passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: new Date() },
     }).select('+passwordResetToken +passwordResetExpires +passwordChangedAt');
 
@@ -240,8 +240,8 @@ export const resetPassword = asyncHandler(
       return next(new AppError('Password reset link is invalid or has expired.', 400, 'INVALID_TOKEN'));
     }
 
-    user.password             = req.body.password;
-    user.passwordResetToken   = undefined;
+    user.password = req.body.password;
+    user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
 
@@ -274,7 +274,7 @@ export const updatePassword = asyncHandler(
 
 export const getMe = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const user    = await findActiveUser(req.user!._id.toString());
+    const user = await findActiveUser(req.user!._id.toString());
     const profile = await loadUserProfile(user);
 
     return (res as AppResponse).data(
@@ -292,6 +292,7 @@ export const updateProfile = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
     const ALLOWED = ['firstName', 'lastName', 'phone', 'avatarUrl'] as const;
     const updates: Record<string, unknown> = {};
+
 
     for (const field of ALLOWED) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
@@ -318,7 +319,7 @@ export const deactivateAccount = asyncHandler(
       return next(new AppError('Password incorrect. Account was not deactivated.', 401, 'INVALID_CREDENTIALS'));
     }
 
-    user.isActive     = false;
+    user.isActive = false;
     user.refreshToken = undefined;
     await user.save({ validateBeforeSave: false });
 

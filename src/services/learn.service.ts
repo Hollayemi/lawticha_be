@@ -5,6 +5,7 @@ import { StudySessionModel } from '../models/StudySession.model';
 import { UserModel } from '../models/User.model';
 import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
+import { generateSlug } from '../utils/functions';
 
 // Types
 export type LearnTabKey = 'all' | 'active' | 'complete' | 'saved';
@@ -55,14 +56,6 @@ export interface LearnModule {
   progressPercent?: number;
   userTab?: LearnTabKey;
   isSaved?: boolean;
-}
-
-// Helper: Generate slug from title
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 // Helper: Get category metadata
