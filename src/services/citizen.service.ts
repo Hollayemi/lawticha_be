@@ -3,52 +3,58 @@ import { UserModel } from '../models/User.model';
 import { AuditLogModel } from '../models/Admin.model';
 import { AuditAction, UserStatusVariant } from '../models/types';
 import { AppError } from '../middleware/error';
+import cloudinary from '../utils/cloudinary';
 
 //  Types 
 
 interface AdminCtx {
-  adminId:   string;
+  adminId: string;
   adminName: string;
 }
 
 export interface UpdateCitizenProfileInput {
-  phone?:              string;
-  stateCode?:          string;
-  bio?:                string;
-  preferredLanguage?:  string;
-  jurisdictionCode?:   string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  state?: string;
+  bio?: string;
+  avatarUrl?: string;
+  stateCode?: string;
+  preferredLanguage?: string;
+  jurisdictionCode?: string;
   legalInterestAreas?: string[];
   // Appearance
-  theme?:         'light' | 'dark' | 'system';
-  fontSize?:      'small' | 'medium' | 'large';
-  accentColor?:   string;
+  theme?: 'light' | 'dark' | 'system';
+  fontSize?: 'small' | 'medium' | 'large';
+  accentColor?: string;
   reducedMotion?: boolean;
-  highContrast?:  boolean;
-  dyslexicFont?:  boolean;
+  highContrast?: boolean;
+  dyslexicFont?: boolean;
 }
 
 export interface UpdateNotificationsInput {
-  notifEmail?:          boolean;
-  notifSms?:            boolean;
-  notifPush?:           boolean;
-  notifInAppBadge?:     boolean;
+  notifEmail?: boolean;
+  notifSms?: boolean;
+  notifPush?: boolean;
+  notifInAppBadge?: boolean;
   notifLawyerResponse?: boolean;
-  notifConsultReminder?:boolean;
-  notifMatchAlert?:     boolean;
-  notifMessages?:       boolean;
+  notifConsultReminder?: boolean;
+  notifMatchAlert?: boolean;
+  notifMessages?: boolean;
   notifReviewReminder?: boolean;
-  notifWeeklyDigest?:   boolean;
-  notifStreakReminder?:  boolean;
-  notifPlatformUpdates?:boolean;
-  notifLegalNews?:      boolean;
-  notifPromotional?:    boolean;
+  notifWeeklyDigest?: boolean;
+  notifStreakReminder?: boolean;
+  notifPlatformUpdates?: boolean;
+  notifLegalNews?: boolean;
+  notifPromotional?: boolean;
 }
 
 export interface UpdatePrivacyInput {
-  showActivityPublic?:      boolean;
+  showActivityPublic?: boolean;
   allowAnonymousAnalytics?: boolean;
-  personalizedRecommend?:   boolean;
-  showProfileInCommunity?:  boolean;
+  personalizedRecommend?: boolean;
+  showProfileInCommunity?: boolean;
 }
 
 //  Get citizen profile 
@@ -59,7 +65,7 @@ export async function getCitizenProfile(userId: string) {
     CitizenProfileModel.findOne({ userId }),
   ]);
 
-  if (!user)    throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');
   if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
 
   return { user: user.toSafeObject(), profile };
@@ -69,31 +75,47 @@ export async function getCitizenProfile(userId: string) {
 
 export async function updateCitizenProfile(
   userId: string,
-  input:  UpdateCitizenProfileInput
+  input: UpdateCitizenProfileInput
 ): Promise<ICitizenProfileDocument> {
   const profile = await CitizenProfileModel.findOne({ userId });
+  const user = await UserModel.findById(userId);
   if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
+  if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');
 
-  const FIELDS = [
+  const CITIZEN_FIELDS = [
     'phone', 'stateCode', 'bio', 'preferredLanguage', 'jurisdictionCode',
     'legalInterestAreas', 'theme', 'fontSize', 'accentColor',
     'reducedMotion', 'highContrast', 'dyslexicFont',
   ] as const;
 
-  for (const key of FIELDS) {
+  const USER_FIELDS = [
+    'lastName', 'email', 'state', 'firstName',
+  ] as const;
+
+  if (input.avatarUrl) {
+    user.avatarUrl = (await cloudinary.uploadImage(input.avatarUrl, "user", "image")).url
+  }
+  console.log(user)
+  for (const key of CITIZEN_FIELDS) {
     if (input[key] !== undefined) {
       (profile as any)[key] = input[key];
     }
   }
 
-  return profile.save();
+  for (const key of USER_FIELDS) {
+    if (input[key] !== undefined) {
+      (user as any)[key] = input[key];
+    }
+  }
+
+  return profile.save() && user?.save();
 }
 
 //  Update notification preferences 
 
 export async function updateNotifications(
   userId: string,
-  input:  UpdateNotificationsInput
+  input: UpdateNotificationsInput
 ): Promise<ICitizenProfileDocument> {
   const profile = await CitizenProfileModel.findOne({ userId });
   if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
@@ -118,15 +140,15 @@ export async function updateNotifications(
 
 export async function updatePrivacy(
   userId: string,
-  input:  UpdatePrivacyInput
+  input: UpdatePrivacyInput
 ): Promise<ICitizenProfileDocument> {
   const profile = await CitizenProfileModel.findOne({ userId });
   if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
 
-  if (input.showActivityPublic      !== undefined) profile.showActivityPublic      = input.showActivityPublic;
+  if (input.showActivityPublic !== undefined) profile.showActivityPublic = input.showActivityPublic;
   if (input.allowAnonymousAnalytics !== undefined) profile.allowAnonymousAnalytics = input.allowAnonymousAnalytics;
-  if (input.personalizedRecommend   !== undefined) profile.personalizedRecommend   = input.personalizedRecommend;
-  if (input.showProfileInCommunity  !== undefined) profile.showProfileInCommunity  = input.showProfileInCommunity;
+  if (input.personalizedRecommend !== undefined) profile.personalizedRecommend = input.personalizedRecommend;
+  if (input.showProfileInCommunity !== undefined) profile.showProfileInCommunity = input.showProfileInCommunity;
 
   return profile.save();
 }
@@ -151,8 +173,8 @@ export async function awardXP(
 
 export interface ListCitizensParams {
   status?: string;
-  search?:   string;
-  page?:     number;
+  search?: string;
+  page?: number;
   pageSize?: number;
   isActive?: boolean;
 }
@@ -163,7 +185,7 @@ export async function listCitizens(params: ListCitizensParams = {}) {
   const userFilter: Record<string, unknown> = { role: 'citizen' };
   if (isActive !== undefined) userFilter.isActive = isActive;
   if (search?.trim()) userFilter.$text = { $search: search.trim() };
-  if(status !== undefined) userFilter.status = status;
+  if (status !== undefined) userFilter.status = status;
 
   const skip = (page - 1) * pageSize;
 
@@ -177,7 +199,7 @@ export async function listCitizens(params: ListCitizensParams = {}) {
   const profileMap = new Map(profiles.map((p) => [p.userId.toString(), p]));
 
   const data = users.map((u) => ({
-    user:    u.toSafeObject(),
+    user: u.toSafeObject(),
     profile: profileMap.get((u._id as any).toString()) ?? null,
   }));
 
@@ -201,7 +223,7 @@ export async function updateCitizenStatus(
   userId: string,
   action: UserStatusVariant,
   reason: string,
-  admin:  AdminCtx
+  admin: AdminCtx
 ) {
   const user = await UserModel.findOne({ _id: userId, role: 'citizen' });
   if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
@@ -210,12 +232,12 @@ export async function updateCitizenStatus(
   await user.save({ validateBeforeSave: false });
 
   AuditLogModel.create({
-    adminId:    admin.adminId,
-    adminName:  admin.adminName,
-    action:     AuditAction.CITIZEN_STATUS_CHANGED,
+    adminId: admin.adminId,
+    adminName: admin.adminName,
+    action: AuditAction.CITIZEN_STATUS_CHANGED,
     targetType: 'citizen',
-    targetId:   user._id,
-    meta:       { action, reason },
+    targetId: user._id,
+    meta: { action, reason },
   }).catch(() => null);
 
   return {
@@ -228,10 +250,10 @@ export async function updateCitizenStatus(
 //  Admin: send email to citizen (stub) 
 
 export async function emailCitizen(
-  userId:  string,
+  userId: string,
   subject: string,
-  body:    string,
-  admin:   AdminCtx
+  body: string,
+  admin: AdminCtx
 ) {
   const user = await UserModel.findOne({ _id: userId, role: 'citizen' });
   if (!user) throw new AppError('Citizen not found.', 404, 'NOT_FOUND');
@@ -240,12 +262,12 @@ export async function emailCitizen(
   console.log(`[EMAIL] To: ${user.email} | Subject: ${subject}`);
 
   AuditLogModel.create({
-    adminId:    admin.adminId,
-    adminName:  admin.adminName,
-    action:     AuditAction.CITIZEN_EMAIL_SENT,
+    adminId: admin.adminId,
+    adminName: admin.adminName,
+    action: AuditAction.CITIZEN_EMAIL_SENT,
     targetType: 'citizen',
-    targetId:   user._id,
-    meta:       { subject },
+    targetId: user._id,
+    meta: { subject },
   }).catch(() => null);
 
   return { message: 'Email sent successfully.' };
@@ -256,7 +278,7 @@ export async function emailCitizen(
 export async function getCitizenStats() {
   const [total, active, inactive] = await Promise.all([
     UserModel.countDocuments({ role: 'citizen' }),
-    UserModel.countDocuments({ role: 'citizen', isActive: true  }),
+    UserModel.countDocuments({ role: 'citizen', isActive: true }),
     UserModel.countDocuments({ role: 'citizen', isActive: false }),
   ]);
 
@@ -268,7 +290,7 @@ export async function getCitizenStats() {
     total,
     active,
     inactive,
-    avgXP:            xpAgg[0]?.avgXP         ? Math.round(xpAgg[0].avgXP)     : 0,
-    totalStudyHours:  xpAgg[0]?.totalStudyMins ? Math.round(xpAgg[0].totalStudyMins / 60) : 0,
+    avgXP: xpAgg[0]?.avgXP ? Math.round(xpAgg[0].avgXP) : 0,
+    totalStudyHours: xpAgg[0]?.totalStudyMins ? Math.round(xpAgg[0].totalStudyMins / 60) : 0,
   };
 }

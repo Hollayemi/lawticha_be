@@ -5,6 +5,7 @@ import {
   getCitizenById,
   updateCitizenStatus,
   emailCitizen,
+  updateCitizenProfile,
 } from '../services/citizen.service';
 import { CitizenStatus } from '../models/types/lawticha.types';
 import { UserStatusVariant } from '../models';
@@ -80,5 +81,17 @@ export const emailCitizenHandler = asyncHandler(
 
     const result = await emailCitizen(req.params.id, subject, body, adminCtx(req));
     return (res as AppResponse).data(result, 'Email sent successfully');
+  }
+);
+
+
+export const UpdateCitizenProfileHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+
+    const result = await updateCitizenProfile(
+      req.params.id,
+      req.body
+    );
+    return (res as AppResponse).data(result, 'Citizen profile updated');
   }
 );

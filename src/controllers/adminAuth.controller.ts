@@ -32,7 +32,7 @@ function setCookie(res: Response, token: string) {
 export const adminLoginHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body as { email?: string; password?: string };
-
+    console.log(req.body)
     if (!email?.trim())    return next(new AppError('Email is required', 400, 'VALIDATION_ERROR'));
     if (!password?.trim()) return next(new AppError('Password is required', 400, 'VALIDATION_ERROR'));
 

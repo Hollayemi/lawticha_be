@@ -70,35 +70,44 @@ import learnRoutes from './routes/learn.routes';
 import communityRoutes from './routes/community.routes';
 
 // Legacy LawTicha auth (keep if still needed)
+import libraryRoutes from './routes/library.routes';
 import authRoutes from './routes/auth.routes';
 import citizenRoutes from './routes/citizen.routes';
+import lawyerRoutes from './routes/lawyer.routes';
+import marketplaceRoutes from './routes/marketplace.routes';
 // import adminRoutes       from './routes/admin.routes';
 
 // LawTicha admin
 import adminAuthRoutes from './routes/admin/auth.admin.routes';
 import adminCitizenRoutes from './routes/admin/citizen.admin.routes';
 import adminCommunityRoutes from './routes/admin/community.admin.routes';
-import lawyerRoutes from './routes/admin/lawyer.admin.routes';
+import adminLibraryRoutes from './routes/admin/library.admin.routes';
+import adminLawyerRoutes from './routes/admin/lawyer.admin.routes';
 import modulesRoutes from './routes/admin/module.admin.routes';
 import adminRoutes from './routes/admin/admin.routes';
 import { seedAdmin } from './scripts/seed-super-admin';
 
 
+// auth
+app.use('/api/v1/auth/admin', adminAuthRoutes);
+app.use('/api/v1/auth', authRoutes);
+
+
 // Public
 app.use('/api/v1/learn', learnRoutes);
 app.use('/api/v1/community', communityRoutes);
+app.use('/api/v1/library', libraryRoutes);
+app.use('/api/v1/marketplace', lawyerRoutes);
+app.use('/api/v1/marketplace', marketplaceRoutes);
 
 
 // Legacy LawTicha
-app.use('/api/v1/auth/admin', adminAuthRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin/community', adminCommunityRoutes);
-app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/citizen', citizenRoutes);
-
-// LawTicha Admin Resource Routes
 app.use('/api/v1/admin/citizens', adminCitizenRoutes);
-app.use('/api/v1/admin/lawyers', lawyerRoutes);
+app.use('/api/v1/admin/library', adminLibraryRoutes);
+app.use('/api/v1/admin/lawyers', adminLawyerRoutes);
 app.use('/api/v1/admin/modules', modulesRoutes);
 
 //  Error handling 

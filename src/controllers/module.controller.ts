@@ -116,7 +116,7 @@ export const getModuleHandler = asyncHandler(
  */
 export const createModuleHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { title, category, description, instructorId, thumbnailUrl, status } =
+    const { title, category, description, instructorId, thumbnailUrl, thumbnailFile, status } =
       req.body;
 
     if (!title?.trim()) {
@@ -138,6 +138,7 @@ export const createModuleHandler = asyncHandler(
       description,
       instructorId,
       thumbnailUrl,
+      thumbnailFile,
       status,
     };
 

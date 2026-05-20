@@ -486,7 +486,7 @@ export async function getContinueReading(citizenId: string) {
 }
 
 export async function getFeaturedTopics(): Promise<any[]> {
-  const topics = await TopicModel.find({ status: 'published' })
+  const topics = await TopicModel.find({ status: 'published' }).populate("moduleId", "title")
     .sort({ watchCount: -1 })
     .limit(4)
     .populate('moduleId');
@@ -494,11 +494,13 @@ export async function getFeaturedTopics(): Promise<any[]> {
   const result = [];
   
   for (const topic of topics) {
-    const module = topic.moduleId as any;
-    const instructor = await getInstructorData(module?.instructorId);
-    
+    console.log(topic.moduleId);
+    const module = topic.moduleId._id as any;
+    const instructor = await getInstructorData(module);
+
     result.push({
       _id: topic._id.toString(),
+      module: generateSlug(topic.moduleId.title),
       slug: generateSlug(topic.title),
       title: topic.title,
       instructor: {

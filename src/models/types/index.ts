@@ -43,6 +43,8 @@ export enum AuditAction {
   LOGIN = "login",
   LOGOUT = "logout",
   PASSWORD_CHANGE = "password_change",
+  CITIZEN_STATUS_CHANGED = "citizen_status_changed",
+  CITIZEN_EMAIL_SENT = "email_sent",
 
   // Admin management
   ADMIN_CREATED = "admin_created",
@@ -82,7 +84,13 @@ export enum AuditAction {
   VERIFICATION_INFO_REQUEST = "verification_info_request",
   VERIFICATION_REJECTED = "verification_rejected",
   DOCUMENT_VERIFIED  = "document_verified",
-  LAWYER_STATUS_CHANGED  = "lawyer_status_changed" 
+  LAWYER_STATUS_CHANGED  = "lawyer_status_changed",
+
+  // library
+   BOOK_CREATED = 'book_created',
+  BOOK_UPDATED = 'book_updated',
+  BOOK_DELETED = 'book_deleted',
+  ORDER_UPDATED = 'order_updated',
 }
 
 export type OnboardingStep =
