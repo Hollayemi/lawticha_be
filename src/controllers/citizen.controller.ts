@@ -32,8 +32,8 @@ export const listCitizensHandler = asyncHandler(
     const result = await listCitizens({
       status,
       search,
-      page:      page     ? Number(page)     : undefined,
-      pageSize:  pageSize ? Number(pageSize)  : undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
       // sortBy,
       // sortOrder: sortOrder as 'asc' | 'desc',
     });
@@ -77,7 +77,7 @@ export const emailCitizenHandler = asyncHandler(
     const { subject, body } = req.body as { subject?: string; body?: string };
 
     if (!subject?.trim()) return next(new AppError('subject is required', 400, 'VALIDATION_ERROR'));
-    if (!body?.trim())    return next(new AppError('body is required', 400, 'VALIDATION_ERROR'));
+    if (!body?.trim()) return next(new AppError('body is required', 400, 'VALIDATION_ERROR'));
 
     const result = await emailCitizen(req.params.id, subject, body, adminCtx(req));
     return (res as AppResponse).data(result, 'Email sent successfully');
@@ -87,9 +87,10 @@ export const emailCitizenHandler = asyncHandler(
 
 export const UpdateCitizenProfileHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-
+    console.log((req as any).user)
+    const userId = (req as any).user?._id;
     const result = await updateCitizenProfile(
-      req.params.id,
+      userId,
       req.body
     );
     return (res as AppResponse).data(result, 'Citizen profile updated');

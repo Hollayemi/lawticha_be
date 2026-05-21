@@ -77,7 +77,9 @@ export async function updateCitizenProfile(
   userId: string,
   input: UpdateCitizenProfileInput
 ): Promise<ICitizenProfileDocument> {
+
   const profile = await CitizenProfileModel.findOne({ userId });
+  console.log({profile})
   const user = await UserModel.findById(userId);
   if (!profile) throw new AppError('Citizen profile not found.', 404, 'NOT_FOUND');
   if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');

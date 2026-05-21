@@ -81,7 +81,7 @@ export const createPostHandler = asyncHandler(
       parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
     }
     
-    const files = req.files as Express.Multer.File[] | undefined;
+    const files = req.body.images;
     
     const result = await communityService.createPost(
       userId,
@@ -113,7 +113,7 @@ export const createCommentHandler = asyncHandler(
       throw new AppError('Comment content is required', 400, 'VALIDATION_ERROR');
     }
     
-    const files = req.files as Express.Multer.File[] | undefined;
+    const files = req.body.images;
     
     const result = await communityService.createComment(
       req.params.postId,

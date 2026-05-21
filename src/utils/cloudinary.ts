@@ -16,7 +16,7 @@ interface UploadResult {
 
 class CloudinaryService {
     // Upload a single image
-    async uploadImage(file: Express.Multer.File | string, folder: string = 'go-kart', type: "image"|"raw"|"video" = "image"): Promise<UploadResult> {
+    async uploadImage(file: Express.Multer.File | string, folder: string = 'lawticha', type: "image"|"raw"|"video" = "image"): Promise<UploadResult> {
         if (typeof file === 'string') {
             const result = await cloudinary.uploader.upload(file, {
                 folder:`lawticha/${folder}`,
@@ -64,8 +64,8 @@ class CloudinaryService {
     }
 
     // Upload multiple images
-    async uploadMultipleImages(files: Express.Multer.File[], folder: string = 'go-kart'): Promise<string[]> {
-        const uploadPromises = files.map(file => this.uploadImage(file, folder));
+    async uploadMultipleImages(files: string[], folder: string = 'lawticha', type: "image"|"raw"|"video" = "image"): Promise<string[]> {
+        const uploadPromises = files.map(file => this.uploadImage(file, folder, type ));
         const results = await Promise.all(uploadPromises);
         return results.map(result => result.url);
     }

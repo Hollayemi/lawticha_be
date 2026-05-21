@@ -85,6 +85,7 @@ import adminLibraryRoutes from './routes/admin/library.admin.routes';
 import adminLawyerRoutes from './routes/admin/lawyer.admin.routes';
 import modulesRoutes from './routes/admin/module.admin.routes';
 import adminRoutes from './routes/admin/admin.routes';
+import adminDashboardRoutes from './routes/admin/dashboard.admin.routes';
 import { seedAdmin } from './scripts/seed-super-admin';
 
 
@@ -99,12 +100,13 @@ app.use('/api/v1/community', communityRoutes);
 app.use('/api/v1/library', libraryRoutes);
 app.use('/api/v1/marketplace', lawyerRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
+app.use('/api/v1/citizen', citizenRoutes);
 
 
 // Legacy LawTicha
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin/community', adminCommunityRoutes);
-app.use('/api/v1/citizen', citizenRoutes);
+app.use('/api/v1/admin/dashboard', adminDashboardRoutes);
 app.use('/api/v1/admin/citizens', adminCitizenRoutes);
 app.use('/api/v1/admin/library', adminLibraryRoutes);
 app.use('/api/v1/admin/lawyers', adminLawyerRoutes);

@@ -8,14 +8,13 @@ import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
 import { 
   CreatePostInput, 
-  CreateCommentInput, 
-  ListPostsQuery,
+  CreateCommentInput,
   CommunityUser,
   CommunityReference,
   COMMUNITY_ROOMS,
   ICommunityPost
 } from '../models/types/community.types';
-import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary';
+import cloudinary from '../utils/cloudinary';
 
 // Helper: Build community user object
 async function buildCommunityUser(userId: Types.ObjectId): Promise<CommunityUser> {
@@ -112,15 +111,6 @@ async function buildReference(referenceInput: CreatePostInput['reference']): Pro
   };
 }
 
-// Helper: Upload images to Cloudinary
-async function uploadImages(files: Express.Multer.File[] | undefined): Promise<string[]> {
-  if (!files || files.length === 0) return [];
-  
-  const uploadPromises = files.map(file => uploadToCloudinary(file, 'community'));
-  const results = await Promise.all(uploadPromises);
-  return results.filter(url => url !== null) as string[];
-}
-
 // Helper: Sort posts
 function sortPosts(posts: any[], sort: string) {
   switch (sort) {
@@ -144,8 +134,8 @@ function sortPosts(posts: any[], sort: string) {
 // ──────────────────────────────────────────────────────────────────
 
 // GET /community/posts
-export async function listPosts(query: ListPostsQuery) {
-  const { room, sort = 'latest', search, tag, page = 1, pageSize = 20 } = query;
+export async function listPosts(query: any) {
+  const { room = "general", sort = 'latest', search, tag, page = 1, pageSize = 20 } = query;
   
   const filter: any = {};
   
@@ -246,7 +236,7 @@ export async function getPostById(postId: string, userId?: string) {
 }
 
 // POST /community/posts
-export async function createPost(userId: string, input: CreatePostInput, files?: Express.Multer.File[]) {
+export async function createPost(userId: string, input: CreatePostInput, files?: string[]) {
   // Get user details
   const author = await buildCommunityUser(new Types.ObjectId(userId));
   
@@ -260,7 +250,7 @@ export async function createPost(userId: string, input: CreatePostInput, files?:
   const reference = await buildReference(input.reference);
   
   // Upload images
-  const imageUrls = await uploadImages(files);
+  const imageUrls =files ? await cloudinary.uploadMultipleImages(files, 'community') : [];
   
   const post = await CommunityPostModel.create({
     title: input.title,
@@ -289,7 +279,7 @@ export async function createComment(
   postId: string, 
   userId: string, 
   input: CreateCommentInput, 
-  files?: Express.Multer.File[]
+  files?: string[]
 ) {
   const post = await CommunityPostModel.findById(postId);
   if (!post) {
@@ -310,7 +300,8 @@ export async function createComment(
   }
   
   // Upload images
-  const imageUrls = await uploadImages(files);
+  const imageUrls = files ? await cloudinary.uploadMultipleImages(files, 'community') : [];
+  console.log(imageUrls)
   
   const comment = await CommunityCommentModel.create({
     postId: new Types.ObjectId(postId),
