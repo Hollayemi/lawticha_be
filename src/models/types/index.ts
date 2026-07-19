@@ -261,7 +261,7 @@ export interface IVerificationDocument {
 
 export interface ILawyerProfile extends BaseModel {
   userId: ObjectId;
-  // NBA & professional identity
+  // SCN & professional identity
   nbaNumber?: string;
   yearOfCall?: number;
   calledAt?: string;        // "2019"
@@ -435,11 +435,12 @@ export interface ILawyerRequest extends BaseModel {
   location?: string;
   topic: string;
   mode: ConsultMode;
-  budget: string;
   description: string;
+  waiver?: boolean;
+  waiverReason?: string;
+  whenHappened?: Date;
   /** Additional context the citizen shared for whoever ends up handling the case. */
   notes?: string;
-  scheduledAt?: Date;
   status: MatchRequestStatus;
 
   //  Documents 

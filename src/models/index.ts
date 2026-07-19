@@ -9,7 +9,7 @@
  *
  *  User (role: citizen | lawyer | admin)
  *    ├ CitizenProfile   1-to-1  (XP, streak, prefs, notifications)
- *    └ LawyerProfile    1-to-1  (NBA, specialisms, fees, verification embedded)
+ *    └ LawyerProfile    1-to-1  (SCN, specialisms, fees, verification embedded)
  *
  *  LegalTopic → LegalModule
  *    ├ Enrollment     (citizen ↔ module)

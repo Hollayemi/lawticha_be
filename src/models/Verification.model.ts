@@ -41,7 +41,7 @@ const VerificationSchema = new Schema<IVerification>(
     },
     nbaNumber: {
       type: String,
-      required: [true, 'NBA number is required'],
+      required: [true, 'SCN number is required'],
       trim: true,
       index: true,
     },

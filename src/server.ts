@@ -113,7 +113,7 @@ app.use('/api/v1/learn', learnRoutes);
 app.use('/api/v1/community', communityRoutes);
 app.use('/api/v1/library', libraryRoutes);
 app.use('/api/v1/consultations', consultationRoutes);
-app.use('/api/v1/marketplace', lawyerRoutes);
+app.use('/api/v1/lawyers', lawyerRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
 app.use('/api/v1/citizen', citizenRoutes);
 
@@ -159,15 +159,11 @@ const server = httpServer.listen(PORT, async () => {
   `);
 });
 
-// httpServer.listen(PORT, async () => {
-//   await chatService.init();       // ← connects Redis + starts Socket.io
-//   console.log(`Server running on port ${PORT}`);
-// });
- 
-// process.on('SIGTERM', async () => {
-//   await chatService.shutdown();
-//   process.exit(0);
-// });
+
+process.on('SIGTERM', async () => {
+  // await chatService.shutdown();
+  process.exit(0);
+});
 
 process.on('unhandledRejection', (err: Error) => {
   console.log('UNHANDLED REJECTION! Shutting down...');

@@ -82,7 +82,7 @@ export async function findActiveUser(id: string | Types.ObjectId): Promise<IUser
  *
  * Citizen → CitizenProfile (XP, gamification, preferences)
  * Lawyer  → LawyerProfile skeleton (verification status: pending)
- *           The lawyer still needs to complete onboarding (NBA number, docs, etc.)
+ *           The lawyer still needs to complete onboarding (SCN number, docs, etc.)
  */
 export async function createProfileAfterRegister(user: IUserDocument): Promise<void> {
   if (user.role === UserRole.CITIZEN) {

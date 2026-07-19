@@ -323,16 +323,15 @@ export async function createBookmark(input: CreateBookmarkInput) {
 }
 
 export async function listBookmarksForSubtopic(subtopicId: string, citizenId: string) {
-  let filter = {}
+  let filter = { citizenId: new Types.ObjectId(citizenId), } as any
   if (Types.ObjectId.isValid(subtopicId)) {
     filter = {
-      citizenId: new Types.ObjectId(citizenId),
+      ...filter,
       subtopicId: new Types.ObjectId(subtopicId),
     }
   }
-
+  
   const bookmarks = await SubtopicBookmarkModel.find(filter).sort({ createdAt: -1 });
-
   return bookmarks.map(toBookmarkDto);
 }
 

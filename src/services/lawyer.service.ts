@@ -662,7 +662,7 @@ export async function getMarketplaceLawyers(params: MarketplaceLawyersParams = {
 }
 
 /**
- * Get lawyer by NBA number (public)
+ * Get lawyer by SCN number (public)
  * GET /marketplace/lawyers/:nbaNumber
  */
 export async function getLawyerByNbaNumber(nbaNumber: string) {
@@ -688,15 +688,14 @@ export interface BookConsultationInput {
   mode: 'message' | 'call' | 'video';
   topic: string;
   description?: string;
-  preferredTimeSlot?: string;
 }
 
 export const receiptId = `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-export async function bookConsultation(citizenId: string, citizenName:string, input: BookConsultationInput) {
-  const { lawyerNbaNumber, mode, topic, description, preferredTimeSlot } = input;
+export async function bookConsultation(citizenId: string, citizenName: string, input: BookConsultationInput) {
+  const { lawyerNbaNumber, mode, topic, description } = input;
 
-  // Find lawyer by NBA number
+  // Find lawyer by SCN number
   const profile = await LawyerProfileModel.findOne({ nbaNumber: lawyerNbaNumber })
     .populate('userId', 'firstName lastName email avatarUrl')
     .populate('specialisms', 'name displayName');
@@ -731,7 +730,6 @@ export async function bookConsultation(citizenId: string, citizenName:string, in
     topic,
     detail: description,
     status: 'pending',
-    scheduledAt: preferredTimeSlot ? new Date(preferredTimeSlot) : undefined,
     feePaid,
     receiptId,
     timeline: [
@@ -764,7 +762,7 @@ export async function bookConsultation(citizenId: string, citizenName:string, in
     },
   });
 
-  await ConsultationModel.updateOne({_id: consultation._id }, { $set: { conversationId: conversation.conversation._id  }})
+  await ConsultationModel.updateOne({ _id: consultation._id }, { $set: { conversationId: conversation.conversation._id } })
 
   return {
     consultationId: consultation._id,
@@ -789,15 +787,16 @@ export interface RequestMatchDocumentInput {
 
 export interface RequestMatchInput {
   specialism: string;
-  urgency: 'today' | 'this_week' | 'within_two_weeks' | 'no_rush';
+  urgency: string;
   topic: string;
-  mode: 'message' | 'call' | 'video';
-  preferredTimeSlot: string;
-  location?: string;
-  budgetRange: string;
+  mode: 'message' | 'call' | 'video' | 'sms';
+  location: string;
   description: string;
   notes?: string;
   documents?: RequestMatchDocumentInput[];
+  waiver?: boolean;
+  waiverReason?: string;
+  whenHappened?: Date;
 }
 
 export async function requestLawyerMatch(citizenId: string, input: RequestMatchInput) {
@@ -821,11 +820,12 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
     location: input.location,
     topic: input.topic,
     mode: input.mode,
-    budget: input.budgetRange,
     description: input.description,
     notes: input.notes,
+    waiver: input.waiver,
+    waiverReason: input.waiverReason,
+    whenHappened: input.whenHappened,
     documents,
-    scheduledAt: input.preferredTimeSlot ? new Date(input.preferredTimeSlot) : undefined,
     status: 'pending',
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     timeline: [

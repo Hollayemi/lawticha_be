@@ -15,7 +15,6 @@ import {
   IRecommendedLawyer,
 } from '../models/types';
 import { bookConsultation, receiptId } from './lawyer.service';
-import { isWithinBudget } from '../utils/functions';
 import PaymentGateway from './payment/payment';
 import CloudinaryService from '../utils/cloudinary';
 import { lawyerObject } from '../helpers/formatReturn';
@@ -155,7 +154,6 @@ function mapMatchRequestToDTO(req: any) {
     urgency: req.urgency,
     mode: req.mode,
     topic: req.topic,
-    budget: req.budget,
     description: req.description,
     notes: req.notes,
     documents: (req.documents || []).map((d: any) => ({
@@ -250,7 +248,6 @@ export async function formatConsultation(consult: any) {
     platformFee: consult.platformFee || Math.round(consult.feePaid * 0.15),
     lawyerPayout: consult.lawyerPayout || Math.round(consult.feePaid * 0.85),
     createdAt: consult.createdAt?.toISOString(),
-    scheduledAt: consult.scheduledAt?.toISOString(),
     completedAt: consult.completedAt?.toISOString(),
     rating: consult.citizenRating,
     ratingNote: consult.citizenReview,
@@ -751,7 +748,6 @@ export async function acceptMatchRequest(matchRequestId: string, lawyerId: strin
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
-    preferredTimeSlot: request.scheduledAt ? request.scheduledAt.toISOString() : undefined,
   });
 
   request.consultationId = book.consultationId;
@@ -861,7 +857,6 @@ export async function citizenSelectRecommendedLawyer(matchRequestId: string, cit
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
-    preferredTimeSlot: request.scheduledAt ? request.scheduledAt.toISOString() : undefined,
   });
 
   request.consultationId = book.consultationId;
@@ -1421,9 +1416,7 @@ const recommendedCandidates = await LawyerProfileModel.find({ _id: { $in: recomm
   .limit(limit * 3)
   .populate('userId', 'firstName lastName fullName'); 
 
-  const fitting = candidates
-  .filter(l => isWithinBudget(request.budget, l.fees?.[request.mode as keyof typeof l.fees] as number))
-  .slice(0, limit);
+  const fitting = candidates.slice(0, limit);
   
   const finalCandidates = [...recommendedCandidates, ...fitting.filter(c => !recommendedCandidates.some(rc => rc._id.equals(c._id)))];
   
@@ -1504,7 +1497,6 @@ export async function assignLawyerToMatch(matchRequestId: string, lawyerId: stri
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
-    preferredTimeSlot: request.scheduledAt ? request.scheduledAt.toISOString() : undefined,
   });
 
   request.consultationId = book.consultationId;

@@ -66,7 +66,7 @@ export const submitVerificationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { nbaNumber, yearOfCall, calledAt } = req.body;
 
-    if (!nbaNumber?.trim()) return next(new AppError('NBA number is required.', 400, 'VALIDATION_ERROR'));
+    if (!nbaNumber?.trim()) return next(new AppError('SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!yearOfCall) return next(new AppError('Year of call is required.', 400, 'VALIDATION_ERROR'));
     if (!calledAt?.trim()) return next(new AppError('calledAt year is required (e.g. "2019").', 400, 'VALIDATION_ERROR'));
 
@@ -288,7 +288,7 @@ export const getMarketplaceLawyersHandler = asyncHandler(
 
 /**
  * GET /api/v1/marketplace/lawyers/:nbaNumber
- * Get lawyer by NBA number
+ * Get lawyer by SCN number
  */
 export const getLawyerByNbaNumberHandler = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -308,7 +308,7 @@ export const bookConsultationHandler = asyncHandler(
 
     if(!req.user) return next(new AppError('Invalid User.', 400, 'VALIDATION_ERROR'));
 
-    if (!lawyerNbaNumber) return next(new AppError('Lawyer NBA number is required.', 400, 'VALIDATION_ERROR'));
+    if (!lawyerNbaNumber) return next(new AppError('Lawyer SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!mode) return next(new AppError('Consultation mode is required.', 400, 'VALIDATION_ERROR'));
     if (!topic?.trim()) return next(new AppError('Topic is required.', 400, 'VALIDATION_ERROR'));
 
@@ -317,7 +317,6 @@ export const bookConsultationHandler = asyncHandler(
       mode,
       topic,
       description,
-      preferredTimeSlot,
     });
 
     const consultationSlug = result.receiptId
@@ -352,31 +351,18 @@ export const bookConsultationHandler = asyncHandler(
  */
 export const requestLawyerMatchHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { specialism, topic, mode, urgency, location, budgetRange, description, preferredTimeSlot, notes, documents } = req.body;
+    const { specialism, topic, mode, urgency, location, description, notes, documents } = req.body;
 
     if (!specialism?.trim()) return next(new AppError('Specialism is required.', 400, 'VALIDATION_ERROR'));
     if (!urgency) return next(new AppError('Urgency is required.', 400, 'VALIDATION_ERROR'));
-    if (!budgetRange?.trim()) return next(new AppError('Budget range is required.', 400, 'VALIDATION_ERROR'));
+    if (!location?.trim()) return next(new AppError('Location is required.', 400, 'VALIDATION_ERROR'));
     if (!description?.trim()) return next(new AppError('Description is required.', 400, 'VALIDATION_ERROR'));
     if (!topic?.trim()) return next(new AppError('Topic is required.', 400, 'VALIDATION_ERROR'));
     if (!mode?.trim()) return next(new AppError('Mode is required.', 400, 'VALIDATION_ERROR'));
     if (documents && (!Array.isArray(documents) || documents.some((d: any) => !d?.name || !d?.base64))) {
       return next(new AppError('Each document needs a name and base64 file.', 400, 'VALIDATION_ERROR'));
     }
-
-    const result = await requestLawyerMatch(req.user!._id.toString(), {
-      specialism,
-      urgency,
-      topic,
-      mode,
-      location,
-      budgetRange,
-      description,
-      preferredTimeSlot,
-      notes,
-      documents,
-    });
-
+    const result = await requestLawyerMatch(req.user!._id.toString(), req.body);
     return (res as AppResponse).data(result, 'Match request submitted.');
   }
 );

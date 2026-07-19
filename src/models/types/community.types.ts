@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export type CommunityRoomType = 'general' | 'legal-advice' | 'case-study' | 'law-students' | 'lawyers-lounge' | 'ask-lawyer';
 export type ReferenceType = 'module' | 'topic' | 'subtopic';

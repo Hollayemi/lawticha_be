@@ -260,7 +260,7 @@ export interface IVerificationDocument {
 
 export interface ILawyerProfile extends BaseModel {
   userId: ObjectId;
-  // NBA & professional identity
+  // SCN & professional identity
   nbaNumber?: string;
   yearOfCall?: number;
   calledAt?: string;        // "2019"

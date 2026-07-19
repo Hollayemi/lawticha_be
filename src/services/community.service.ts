@@ -135,7 +135,14 @@ function sortPosts(posts: any[], sort: string) {
 
 // GET /community/posts
 export async function listPosts(query: any) {
-  const { room = "general", sort = 'latest', search, tag, page = 1, pageSize = 20 } = query;
+  const { room = "general", sort = 'latest', search, tag, page = 1, pageSize = 20 } = query as {
+    room?: keyof typeof COMMUNITY_ROOMS;
+    sort?: string;
+    search?: string;
+    tag?: string;
+    page?: number;
+    pageSize?: number;
+  };
   
   const filter: any = {};
   
@@ -250,7 +257,7 @@ export async function createPost(userId: string, input: CreatePostInput, files?:
   const reference = await buildReference(input.reference);
   
   // Upload images
-  const imageUrls =files ? await cloudinary.uploadMultipleImages(files, 'community') : [];
+  const imageUrls =files ? await cloudinary.uploadMultipleFiles(files, 'community') : [];
   
   const post = await CommunityPostModel.create({
     title: input.title,
@@ -300,7 +307,7 @@ export async function createComment(
   }
   
   // Upload images
-  const imageUrls = files ? await cloudinary.uploadMultipleImages(files, 'community') : [];
+  const imageUrls = files ? await cloudinary.uploadMultipleFiles(files, 'community') : [];
   console.log(imageUrls)
   
   const comment = await CommunityCommentModel.create({
