@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import PaymentLogging from './paymentLogging';
 import {BookOrderModel} from '../../models/BookOrder.model';
 import { ConsultationModel } from '../../models';
+import { activateSubscriptionFromPayment } from '../subscription.service';
 
 interface PaymentData {
     email: string;
@@ -273,6 +274,22 @@ class PaymentGateway extends PaymentLogging {
                 await consultation?.updateStatus("awaiting_lawyer", 'Wait for lawyer to accept the consultation request');
             }
 
+            if (reference?.startsWith("PAY_SUB")) {
+                const activation = await activateSubscriptionFromPayment({
+                    subscriptionId: metadata.coreId,
+                    transactionId: transactionData.reference,
+                    amount: transactionData.amount / 100,
+                    channel: 'paystack',
+                });
+                if (!activation.success) {
+                    return {
+                        success: false,
+                        error: activation.error || 'Subscription activation failed',
+                        provider: 'paystack'
+                    }
+                }
+            }
+
             return {
                 success: true,
                 data: {
@@ -360,6 +377,22 @@ class PaymentGateway extends PaymentLogging {
                     }
                 }
                 await order?.updateStatus("paid", 'Payment completed successfully');
+            }
+
+            if (reference?.startsWith("PAY_SUB")) {
+                const activation = await activateSubscriptionFromPayment({
+                    subscriptionId: metadata.coreId,
+                    transactionId: transactionData.tx_ref,
+                    amount: transactionData.amount,
+                    channel: 'flutterwave',
+                });
+                if (!activation.success) {
+                    return {
+                        success: false,
+                        error: activation.error || 'Subscription activation failed',
+                        provider: 'flutterwave'
+                    }
+                }
             }
 
             return {

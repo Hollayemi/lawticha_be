@@ -1,37 +1,4 @@
-/**
- * LawTicha,  Model Index
- *
- * All Mongoose models and types exported from one place:
- *
- *   import { UserModel, LawyerProfileModel, ConsultationModel } from '@/models';
- *
- * ENTITY MAP 
- *
- *  User (role: citizen | lawyer | admin)
- *    ├ CitizenProfile   1-to-1  (XP, streak, prefs, notifications)
- *    └ LawyerProfile    1-to-1  (SCN, specialisms, fees, verification embedded)
- *
- *  LegalTopic → LegalModule
- *    ├ Enrollment     (citizen ↔ module)
- *    ├ UserProgress   (per-lesson)
- *    ├ Certificate
- *    └ StudySession
- *
- *  LawyerProfile
- *    ├ Consultation   (citizen ↔ lawyer booking)
- *    │     ├ Conversation → Message
- *    │     └ LawyerReview
- *    └ LawyerRequest  (citizen posts a request, platform matches)
- *
- *  LegalAct  ← Bookmark (citizen ↔ act/module)
- *  DailyChallenge ← DailyChallengeAttempt
- *  CommunityPost
- *  Notification
- *  AdminUser  ← AuditLog
- *  Otp
- */
 
-// Core user models 
 export { UserModel }                from './User.model';
 export type { IUserDocument, IUserModel } from './User.model';
 
@@ -64,6 +31,18 @@ export { LawyerReviewModel, NotificationModel }   from './Notification.model';
 // Activity 
 export { StudySessionModel }  from './StudySession.model';
 export { OtpModel }           from './Otp.model';
+
+// Billing / Subscriptions 
+export { SubscriptionPlanModel }   from './SubscriptionPlan.model';
+export type { ISubscriptionPlanDocument } from './SubscriptionPlan.model';
+
+export { SubscriptionModel }       from './Subscription.model';
+export type { ISubscriptionDocument, ISubscriptionModel } from './Subscription.model';
+
+export { BillingHistoryModel }     from './BillingHistory.model';
+export type { IBillingHistoryDocument } from './BillingHistory.model';
+
+export * from './types/billing.types';
 
 // Types & enums (re-exported for convenience) 
 export * from './types';

@@ -80,6 +80,7 @@ import authRoutes from './routes/auth.routes';
 import citizenRoutes from './routes/citizen.routes';
 import lawyerRoutes from './routes/lawyer.routes';
 import paymentRoutes from './routes/payment.routes';
+import citizenSubscriptionRoutes from './routes/citizenSubscription.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
 import consultationRoutes from './routes/consultation.routes';
 
@@ -94,8 +95,10 @@ import modulesRoutes from './routes/admin/module.admin.routes';
 import adminRoutes from './routes/admin/admin.routes';
 import adminDashboardRoutes from './routes/admin/dashboard.admin.routes';
 import adminConsultation from './routes/admin/consultation.admin.routes';
+import adminSubscriptionRoutes from './routes/admin/subscription.admin.routes';
 import { seedSpecialisms } from './scripts/seed-specialism';
 import { protectBoth } from './middleware/auth.middleware';
+import { seedSubscriptionPlans } from './scripts/seed-subscription-plans';
 
 
 
@@ -116,6 +119,7 @@ app.use('/api/v1/consultations', consultationRoutes);
 app.use('/api/v1/lawyers', lawyerRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
 app.use('/api/v1/citizen', citizenRoutes);
+app.use('/api/v1/citizens', citizenSubscriptionRoutes);
 
 // Legacy LawTicha
 app.use('/api/v1/admin', adminRoutes);
@@ -126,6 +130,7 @@ app.use('/api/v1/admin/library', adminLibraryRoutes);
 app.use('/api/v1/admin/lawyers', adminLawyerRoutes);
 app.use('/api/v1/admin/modules', modulesRoutes);
 app.use('/api/v1/admin/consultations', adminConsultation);
+app.use('/api/v1/admin/subscriptions', adminSubscriptionRoutes);
 
 
 // ── Create HTTP server (required for Socket.io) ──────────────────────────────
@@ -148,6 +153,7 @@ app.use('*', handle404);
 app.use(errorHandler);
 
 // seedSpecialisms()
+seedSubscriptionPlans()
 //  Start 
 const server = httpServer.listen(PORT, async () => {
   // await chatService.init();

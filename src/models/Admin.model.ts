@@ -74,7 +74,7 @@ const AuditLogSchema = new Schema<IAuditLogDocument>(
     },
     targetType: {
       type:     String,
-      enum:     ['citizen', 'lawyer', 'verification', 'document'],
+      enum:     ['citizen', 'lawyer', 'verification', 'document', 'book', 'plan', 'subscription'],
       required: true,
     },
     targetId: {

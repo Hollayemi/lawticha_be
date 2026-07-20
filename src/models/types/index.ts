@@ -83,6 +83,12 @@ export enum AuditAction {
   COMMENT_RESOLVED = "comment_resolved",
   COMMENT_DELETED = "comment_deleted",
 
+  // Subscription / billing actions
+  PLAN_CREATED = "plan_created",
+  PLAN_UPDATED = "plan_updated",
+  PLAN_DELETED = "plan_deleted",
+  SUBSCRIPTION_STATUS_CHANGED = "subscription_status_changed",
+
   // lawyer actions
   VERIFICATION_APPROVED = "verification_approved",
   VERIFICATION_INFO_REQUEST = "verification_info_request",
