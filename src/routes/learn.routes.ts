@@ -6,6 +6,7 @@ import * as moduleController from '../controllers/module.controller';
 const router = Router();
 
 // Public routes (optional auth)
+router.get('/material/:slug', learnController.getFullMaterial);
 router.get('/modules', optionalAuth, learnController.listLearnModules);
 router.get('/modules/:slug', optionalAuth, learnController.getLearnModuleBySlug);
 router.get('/modules/:moduleSlug/topics/:topicSlug', optionalAuth, learnController.getLearnTopicBySlug);

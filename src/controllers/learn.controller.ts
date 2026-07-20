@@ -34,6 +34,14 @@ export const listLearnModules = asyncHandler(async (req: Request, res: Response)
   }, "Modules retrieved successfully.");
 });
 
+export const getFullMaterial = asyncHandler(async (req: Request, res: Response) => {
+  const { slug = "" } = req.params;
+  const result = await learnService.getFullMaterialByModuleSlug(slug);
+  return (res as AppResponse).data({
+    data: result,
+  }, "Material retrieved successfully.");
+});
+
 // GET /learn/modules/:slug
 export const getLearnModuleBySlug = asyncHandler(async (req: Request, res: Response) => {
   const { slug } = req.params;
@@ -307,7 +315,7 @@ export const toggleCompleteSubtopic = asyncHandler(async (req: Request, res: Res
 
   const result = await subtopicService.toggleCompleteSubtopic(subtopicId, citizenId);
 
-  console.log({result})
+  console.log({ result })
 
   return (res as AppResponse).data(result, result.completed ? 'Subtopic marked as complete' : 'Subtopic marked as incomplete');
 });

@@ -96,7 +96,7 @@ function getGradient(thumbnailUrl: string | null, category: ModuleCategory): str
 // Helper: Get instructor data
 async function getInstructorData(instructorId: Types.ObjectId): Promise<LearnInstructor> {
   const lawyer = await LawyerProfileModel.findOne({ userId: instructorId }).populate('userId', 'firstName lastName email');
-  
+
   if (lawyer && lawyer.userId) {
     const user = lawyer.userId as any;
     const firstName = user.firstName || '';
@@ -110,7 +110,7 @@ async function getInstructorData(instructorId: Types.ObjectId): Promise<LearnIns
       color: '#1E3A5F',
     };
   }
-  
+
   return {
     _id: instructorId.toString(),
     name: 'Legal Expert',
@@ -130,19 +130,19 @@ async function calculateWeeksDuration(moduleId: Types.ObjectId): Promise<number>
 // Main service functions
 export async function listLearnModules(params: ListLearnModulesParams) {
   const { tab, search, category, page = 1, pageSize = 20, citizenId } = params;
-  
+
   const filter: any = { status: 'active' };
-  
+
   if (category && category !== 'all') {
     filter.category = category;
   }
-  
+
   if (search) {
     filter.$text = { $search: search };
   }
-  
+
   const skip = (page - 1) * pageSize;
-  
+
   // Get modules
   const [modules, total] = await Promise.all([
     ModuleModel.find(filter)
@@ -151,32 +151,32 @@ export async function listLearnModules(params: ListLearnModulesParams) {
       .limit(pageSize),
     ModuleModel.countDocuments(filter),
   ]);
-  
+
   // If citizen is authenticated, get their enrollment data
   let enrollments: Map<string, any> = new Map();
   let savedModules: Set<string> = new Set();
-  
+
   if (citizenId) {
     const userEnrollments = await EnrollmentModel.find({
       citizenId: new Types.ObjectId(citizenId),
       moduleId: { $in: modules.map(m => m._id) },
     });
-    
+
     for (const enrollment of userEnrollments) {
       enrollments.set(enrollment.moduleId.toString(), enrollment);
     }
-    
+
     const savedEnrollments = await EnrollmentModel.find({
       citizenId: new Types.ObjectId(citizenId),
       isSaved: true,
       moduleId: { $in: modules.map(m => m._id) },
     });
-    
+
     for (const enrollment of savedEnrollments) {
       savedModules.add(enrollment.moduleId.toString());
     }
   }
-  
+
   // Transform modules
   const transformedModules: LearnModule[] | any = await Promise.all(
     modules.map(async (module) => {
@@ -185,7 +185,7 @@ export async function listLearnModules(params: ListLearnModulesParams) {
       const categoryMeta = getCategoryMetadata(module.category);
       const instructor = await getInstructorData(module.instructorId);
       const weeksDuration = await calculateWeeksDuration(module._id);
-      
+
       let userTab: LearnTabKey | undefined;
       if (enrollment) {
         if (enrollment.status === 'complete') userTab = 'complete';
@@ -194,14 +194,14 @@ export async function listLearnModules(params: ListLearnModulesParams) {
       } else if (isSaved) {
         userTab = 'saved';
       }
-      
+
       // Filter by tab if specified
       if (tab && tab !== 'all') {
         if (tab === 'active' && (!enrollment || enrollment.status !== 'active')) return null;
         if (tab === 'complete' && (!enrollment || enrollment.status !== 'complete')) return null;
         if (tab === 'saved' && !isSaved) return null;
       }
-      
+
       return {
         _id: module._id.toString(),
         slug: generateSlug(module.title),
@@ -232,9 +232,9 @@ export async function listLearnModules(params: ListLearnModulesParams) {
       };
     })
   );
-  
+
   const filteredModules = transformedModules?.filter((m: any) => m !== null) as LearnModule[];
-  
+
   return {
     data: filteredModules,
     total: filteredModules.length,
@@ -244,40 +244,133 @@ export async function listLearnModules(params: ListLearnModulesParams) {
   };
 }
 
+export async function getFullMaterialByModuleSlug(slug: string) {
+
+  if (!slug) {
+    throw new AppError('Module Slug is required', 404, 'SLUG_NOT_FOUND');
+  }
+
+  const module = await ModuleModel.findOne({ slug });
+  console.log(slug, { module })
+  if (!module) {
+    throw new AppError('Module not found', 404, 'MODULE_NOT_FOUND');
+  }
+
+  // Find all topics for this module
+  const topics = await TopicModel.find({ moduleId: module._id })
+    .sort({ order: 1 })
+
+  // Get all subtopics for all topics in this module
+  const topicIds = topics.map(topic => topic._id);
+  const subtopics = await SubTopicModel.find({
+    topicId: { $in: topicIds },
+    moduleId: module._id
+  })
+    .sort({ order: 1 })
+    .lean();
+
+  // Group subtopics by topicId
+  const subtopicsByTopic = subtopics.reduce((acc, subtopic) => {
+    const topicId = subtopic.topicId.toString();
+    if (!acc[topicId]) {
+      acc[topicId] = [];
+    }
+    acc[topicId].push(subtopic);
+    return acc;
+  }, {} as Record<string, typeof subtopics>);
+
+  // Build the hierarchical response
+  const material = {
+    module: {
+      _id: module._id,
+      title: module.title,
+      slug: module.slug,
+      category: module.category,
+      status: module.status,
+      description: module.description,
+      instructor: module.instructor,
+      thumbnail: module.thumbnail,
+      topicCount: module.topicCount,
+      enrolledCount: module.enrolledCount,
+      completionRate: module.completionRate,
+      avgRating: module.avgRating,
+      createdAt: module.createdAt,
+      updatedAt: module.updatedAt
+    },
+    topics: topics.map(topic => ({
+      _id: topic._id,
+      title: topic.title,
+      slug: topic.slug,
+      classification: topic.classification,
+      overview: topic.overview,
+      status: topic.status,
+      order: topic.order,
+      videoType: topic.videoType,
+      videoUrl: topic.videoUrl,
+      thumbnailUrl: topic.thumbnailUrl,
+      duration: topic.duration,
+      durationSeconds: topic.durationSeconds,
+      watchCount: topic.watchCount,
+      completionRate: topic.completionRate,
+      likes: topic.likes,
+      comments: topic.comments,
+      tags: topic.tags,
+      subtopicCount: topic.subtopicCount,
+      subtopics: (subtopicsByTopic[topic._id.toString()] || []).map(subtopic => ({
+        _id: subtopic._id,
+        title: subtopic.title,
+        slug: subtopic.slug,
+        notes: subtopic.notes,
+        duration: subtopic.duration,
+        durationSeconds: subtopic.durationSeconds,
+        order: subtopic.order,
+        viewCount: subtopic.viewCount,
+        completedBy: subtopic.completedBy,
+        createdAt: subtopic.createdAt,
+        updatedAt: subtopic.updatedAt
+      }))
+    }))
+  };
+
+  return material
+
+
+};
+
 export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
   // Find module by title (slug is generated from title)
   const modules = await ModuleModel.find({ status: 'active' });
   const module = modules.find(m => generateSlug(m.title) === slug);
-  
+
   if (!module) {
     throw new AppError('Module not found', 404, 'MODULE_NOT_FOUND');
   }
-  
+
   // Get topics
   const topics = await TopicModel.find({ moduleId: module._id, status: 'published' })
     .sort({ order: 1 });
-  
+
   // Get enrollment data if citizen is authenticated
   let enrollment = null;
   let completedTopics: Set<string> = new Set();
   let activeTopicId: string | null = null;
-  
+
   if (citizenId) {
     enrollment = await EnrollmentModel.findOne({
       citizenId: new Types.ObjectId(citizenId),
       moduleId: module._id,
     });
-    
+
     const userProgress = await UserProgressModel.find({
       citizenId: new Types.ObjectId(citizenId),
       moduleId: module._id,
       status: 'done',
     });
-    
+
     for (const progress of userProgress) {
       completedTopics.add(progress.lessonId.toString());
     }
-    
+
     // Find active topic (first incomplete or current lesson)
     if (enrollment?.currentLessonId) {
       activeTopicId = enrollment.currentLessonId.toString();
@@ -290,14 +383,14 @@ export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
       }
     }
   }
-  
+
   const categoryMeta = getCategoryMetadata(module.category);
   const instructor = await getInstructorData(module.instructorId);
   const weeksDuration = await calculateWeeksDuration(module._id);
-  
+
   // Calculate total watch time
   const totalWatchTimeMinutes = topics.reduce((sum, t) => sum + (t.durationSeconds / 60), 0);
-  
+
   const topicSummaries = topics.map((topic, index) => ({
     _id: topic._id.toString(),
     slug: generateSlug(topic.title),
@@ -308,7 +401,7 @@ export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
     completed: completedTopics.has(topic._id.toString()),
     active: activeTopicId === topic._id.toString(),
   }));
-  
+
   return {
     _id: module._id.toString(),
     slug: generateSlug(module.title),
@@ -348,41 +441,41 @@ export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string,
   // Find module by slug
   const modules = await ModuleModel.find({ status: 'active' });
   const module = modules.find(m => generateSlug(m.title) === moduleSlug);
-  
+
   if (!module) {
     throw new AppError('Module not found', 404, 'MODULE_NOT_FOUND');
   }
-  
+
   // Find topic by slug
   const topics = await TopicModel.find({ moduleId: module._id });
   const topic = topics.find(t => generateSlug(t.title) === topicSlug);
-  
+
   if (!topic) {
     throw new AppError('Topic not found', 404, 'TOPIC_NOT_FOUND');
   }
-  
+
   // Get subtopics
   const subtopics = await SubTopicModel.find({ topicId: topic._id, moduleId: module._id })
     .sort({ order: 1 });
-  
+
   // Get enrollment and progress data
   let enrollment = null;
   let isCompleted = false;
   let progressPercent = 0;
   let currentTime = '0:00';
   let currentTimeSeconds = 0;
-  
+
   if (citizenId) {
     enrollment = await EnrollmentModel.findOne({
       citizenId: new Types.ObjectId(citizenId),
       moduleId: module._id,
     });
-    
+
     const userProgress = await UserProgressModel.findOne({
       citizenId: new Types.ObjectId(citizenId),
       lessonId: topic._id,
     });
-    
+
     if (userProgress) {
       isCompleted = userProgress.status === 'done';
       currentTimeSeconds = userProgress.videoPositionSeconds || 0;
@@ -392,9 +485,9 @@ export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string,
       progressPercent = (currentTimeSeconds / topic.durationSeconds) * 100;
     }
   }
-  
+
   const instructor = await getInstructorData(module.instructorId);
-  
+
   const subtopicSummaries = subtopics.map((subtopic, index) => ({
     _id: subtopic._id.toString(),
     title: subtopic.title,
@@ -403,7 +496,7 @@ export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string,
     notes: subtopic.notes,
     completedBy: subtopic.completedBy,
   }));
-  
+
   return {
     _id: topic._id.toString(),
     slug: generateSlug(topic.title),
@@ -447,13 +540,13 @@ export async function getContinueReading(citizenId: string) {
     .sort({ lastActivityAt: -1 })
     .limit(2)
     .populate('moduleId');
-  
+
   const result = [];
-  
+
   for (const enrollment of enrollments) {
     const module = enrollment.moduleId as any;
     if (!module) continue;
-    
+
     // Get current topic
     let currentSectionTitle = 'Getting Started';
     if (enrollment.currentLessonTitle) {
@@ -464,9 +557,9 @@ export async function getContinueReading(citizenId: string) {
         currentSectionTitle = firstTopic.title;
       }
     }
-    
+
     const lastReadLabel = getRelativeTimeLabel(enrollment.lastActivityAt);
-    
+
     result.push({
       slug: generateSlug(module.title),
       moduleSlug: generateSlug(module.title),
@@ -481,7 +574,7 @@ export async function getContinueReading(citizenId: string) {
       xpRewardOnCompletion: 100,
     });
   }
-  
+
   return result;
 }
 
@@ -490,9 +583,9 @@ export async function getFeaturedTopics(): Promise<any[]> {
     .sort({ watchCount: -1 })
     .limit(4)
     .populate('moduleId');
-  
+
   const result = [];
-  
+
   for (const topic of topics) {
     console.log(topic.moduleId);
     const module = topic.moduleId._id as any;
@@ -511,7 +604,7 @@ export async function getFeaturedTopics(): Promise<any[]> {
       },
     });
   }
-  
+
   return result;
 }
 
@@ -520,7 +613,7 @@ export async function toggleSaveModule(moduleId: string, citizenId: string) {
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
   });
-  
+
   if (enrollment) {
     enrollment.isSaved = !enrollment.isSaved;
     if (enrollment.isSaved && enrollment.status === 'active') {
@@ -531,7 +624,7 @@ export async function toggleSaveModule(moduleId: string, citizenId: string) {
     await enrollment.save();
     return { moduleId, saved: enrollment.isSaved };
   }
-  
+
   // Create new enrollment as saved
   const newEnrollment = new EnrollmentModel({
     citizenId: new Types.ObjectId(citizenId),
@@ -542,7 +635,7 @@ export async function toggleSaveModule(moduleId: string, citizenId: string) {
     lastActivityAt: new Date(),
   });
   await newEnrollment.save();
-  
+
   return { moduleId, saved: true };
 }
 
@@ -551,7 +644,7 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
   });
-  
+
   if (existingEnrollment) {
     if (existingEnrollment.status === 'saved') {
       existingEnrollment.status = 'active';
@@ -565,7 +658,7 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
       userTab: existingEnrollment.status,
     };
   }
-  
+
   const enrollment = new EnrollmentModel({
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
@@ -574,12 +667,12 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
     lastActivityAt: new Date(),
   });
   await enrollment.save();
-  
+
   // Update module enrolled count
   await ModuleModel.findByIdAndUpdate(moduleId, {
     $inc: { enrolledCount: 1 },
   });
-  
+
   return {
     _id: moduleId,
     enrolledAt: enrollment.startedAt.toISOString(),
@@ -593,23 +686,23 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
   });
-  
+
   if (!enrollment) {
     throw new AppError('Enrollment not found', 404, 'ENROLLMENT_NOT_FOUND');
   }
-  
+
   // Check if already completed
   const existingProgress = await UserProgressModel.findOne({
     citizenId: new Types.ObjectId(citizenId),
     lessonId: new Types.ObjectId(topicId),
   });
-  
+
   let xpAwarded = 0;
   let certificateUnlocked = false;
-  
+
   if (!existingProgress || existingProgress.status !== 'done') {
     xpAwarded = 50; // XP for completing a topic
-    
+
     // Create or update progress
     await UserProgressModel.findOneAndUpdate(
       {
@@ -627,7 +720,7 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
       },
       { upsert: true }
     );
-    
+
     // Update enrollment progress
     const totalTopics = await TopicModel.countDocuments({
       moduleId: new Types.ObjectId(moduleId),
@@ -638,19 +731,19 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
       moduleId: new Types.ObjectId(moduleId),
       status: 'done',
     });
-    
+
     const newProgressPercent = (completedTopics / totalTopics) * 100;
     enrollment.progressPercent = newProgressPercent;
     enrollment.lessonsCompleted.push(new Types.ObjectId(topicId));
-    
+
     if (newProgressPercent >= 100) {
       enrollment.status = 'complete';
       enrollment.completedAt = new Date();
       certificateUnlocked = true;
     }
-    
+
     await enrollment.save();
-    
+
     // Record study session
     const topic = await TopicModel.findById(topicId);
     if (topic) {
@@ -668,17 +761,17 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
       });
     }
   }
-  
+
   // Get total XP for citizen
   const totalProgress = await UserProgressModel.aggregate([
     { $match: { citizenId: new Types.ObjectId(citizenId) } },
     { $group: { _id: null, total: { $sum: '$xpAwarded' } } },
   ]);
   const xpTotal = totalProgress[0]?.total || 0;
-  
+
   // Get streak (simplified)
   const streakDays = 1;
-  
+
   return {
     topicId,
     completed: true,
@@ -700,11 +793,11 @@ export async function saveVideoProgress(
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
   });
-  
+
   if (!enrollment) {
     throw new AppError('Enrollment not found', 404, 'ENROLLMENT_NOT_FOUND');
   }
-  
+
   await UserProgressModel.findOneAndUpdate(
     {
       citizenId: new Types.ObjectId(citizenId),
@@ -720,11 +813,11 @@ export async function saveVideoProgress(
     },
     { upsert: true }
   );
-  
+
   // Update enrollment last activity
   enrollment.lastActivityAt = new Date();
   await enrollment.save();
-  
+
   return { topicId, currentTimeSeconds };
 }
 
@@ -734,7 +827,7 @@ function getRelativeTimeLabel(date: Date): string {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  
+
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
   if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
