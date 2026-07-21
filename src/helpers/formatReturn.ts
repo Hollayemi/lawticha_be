@@ -49,6 +49,8 @@ export function toModuleDto(doc: IModule & { _id: Types.ObjectId }) {
     title:               obj.title,
     category:            obj.category,
     status:              obj.status,
+    slug:                obj.slug,
+    materialSummary:     obj.materialSummary,
     thumbnail:           obj.thumbnail,
     description:         obj.description,
     topicCount:          obj.topicCount,

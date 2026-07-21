@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { protectAdmin } from "../../middleware/adminAuth";
+import * as learnController from '../../controllers/learn.controller';
 import {
   // Module handlers
   listModulesHandler,
@@ -46,6 +47,7 @@ router.use(protectAdmin);
 // GET    /admin/modules           - list with filters + pagination
 // POST   /admin/modules           - create new module
 router.route("/").get(listModulesHandler).post(createModuleHandler);
+router.post('/material', learnController.generateMaterialSummary);
 
 // GET    /admin/modules/stats     - aggregate counts for stats bar
 router.get("/stats", getModuleStatsHandler);

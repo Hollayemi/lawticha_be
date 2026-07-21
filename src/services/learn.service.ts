@@ -333,9 +333,39 @@ export async function getFullMaterialByModuleSlug(slug: string) {
   };
 
   return material
-
-
 };
+
+
+export async function generateAndSaveSummary(slug: string, max_words: number = 500) {
+  console.log({ slug, max_words })
+  const response = await fetch('https://material-summary.onrender.com/api/v1/summary/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      slug,
+      max_words: max_words
+    })
+  });
+  if (!response.ok) {
+    const errorData = await response.json() as any;
+    console.log(errorData.detail)
+    throw new AppError(`HTTP error! status: ${response.status}`, 500, 'FAILED TO GENERATE');
+  }
+
+  const data = await response.json() as any;
+
+  await ModuleModel.findOneAndUpdate({ slug }, { $set: { materialSummary:data } });
+
+  // Log the summary for debugging
+  console.log('Summary generated for:', data.module_title);
+  console.log('Total words:', data.total_word_count);
+  console.log('Topics:', data.topics.map((t: any) => t.title).join(', '));
+
+  return data;
+
+}
 
 export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
   // Find module by title (slug is generated from title)
@@ -406,6 +436,7 @@ export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
     _id: module._id.toString(),
     slug: generateSlug(module.title),
     title: module.title,
+    materialSummary: module.materialSummary,
     description: module.description,
     fullDescription: module.description,
     category: module.category,

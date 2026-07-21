@@ -119,6 +119,7 @@ export interface IModule {
   status:             ModuleStatus;
   thumbnail:          string | null;
   description:        string;
+  materialSummary:    object;
   topicCount:         number;
   enrolledCount:      number;
   completionRate:     number;
@@ -147,6 +148,8 @@ const ModuleSchema = new Schema<IModule>(
     thumbnail:   { type: String, default: null },
     description: { type: String, default: '' },
     topicCount:  { type: Number, default: 0 },
+
+    materialSummary: { type: Object, default: null },
 
     // Denorm stats – updated by background jobs / service calls
     enrolledCount:      { type: Number, default: 0 },

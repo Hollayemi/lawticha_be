@@ -34,12 +34,24 @@ export const listLearnModules = asyncHandler(async (req: Request, res: Response)
   }, "Modules retrieved successfully.");
 });
 
+// GET /learn/material/:slug
 export const getFullMaterial = asyncHandler(async (req: Request, res: Response) => {
   const { slug = "" } = req.params;
   const result = await learnService.getFullMaterialByModuleSlug(slug);
   return (res as AppResponse).data({
     data: result,
   }, "Material retrieved successfully.");
+});
+
+// POST /learn/material/:slug
+export const generateMaterialSummary = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.body.slug) {
+    throw new AppError('Module Slug is required', 401, 'INVALID');
+  }
+  const result = await learnService.generateAndSaveSummary(req.body.slug, req.body.max_words);
+  return (res as AppResponse).data({
+    data: result,
+  }, "Material generated successfully.");
 });
 
 // GET /learn/modules/:slug
