@@ -175,9 +175,7 @@ export const resendVerification = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const GENERIC = 'If that email is registered, a verification link has been sent.';
 
-    const user = await UserModel
-      .findByEmail(req.body.email)
-      .select('+emailVerificationToken +emailVerificationExpires');
+    const user = await UserModel.findOne({email: req.body.email}).select('+emailVerificationToken +emailVerificationExpires');
 
     if (!user) return (res as AppResponse).success(GENERIC);
 
@@ -209,7 +207,7 @@ export const forgotPassword = asyncHandler(
     const GENERIC = 'If an account with that email exists, a password reset link has been sent.';
 
     const user = await UserModel
-      .findByEmail(req.body.email)
+      .findOne(req.body.email)
       ?.select('+passwordResetToken +passwordResetExpires');
 
     if (!user || !user.isActive) return (res as AppResponse).success(GENERIC);

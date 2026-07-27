@@ -17,6 +17,7 @@ import {
   SubscriptionPayload,
   ChangePlanPayload,
 } from '../models/types/billing.types';
+import NotificationController from '../controllers/others/notification';
 
 interface AdminCtx {
   adminId: string;
@@ -129,6 +130,16 @@ export async function subscribeToPlan(
   subscription.pendingPaymentRef = paymentResult.data.reference;
   await subscription.save();
 
+  // Notify user of subscription initiation
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: '📋 Subscription Initiated',
+    body: `Your subscription to "${plan.name}" has been initiated. Complete payment to activate.`,
+    type: 'subscription_initiated',
+    clickUrl: '/subscription/status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   return { subscription, payment: paymentResult.data };
 }
 
@@ -216,8 +227,22 @@ export async function cancelSubscription(
   }
 
   await subscription.save();
+
+  // Notify user of cancellation
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: '❌ Subscription Cancelled',
+    body: immediate 
+      ? `Your "${subscription.planName}" subscription has been immediately cancelled.`
+      : `Your "${subscription.planName}" subscription has been cancelled. You'll have access until ${subscription.endDate.toLocaleDateString()}.`,
+    type: 'subscription_cancelled',
+    clickUrl: '/subscription/status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   return subscription;
 }
+
 
 export async function reactivateSubscription(userId: string) {
   const subscription = await SubscriptionModel.findOne({ userId }).sort({ createdAt: -1 });
@@ -235,6 +260,17 @@ export async function reactivateSubscription(userId: string) {
     subscription.cancelledAt = undefined;
     subscription.cancelReason = undefined;
     await subscription.save();
+
+    // Notify user of reactivation
+    await NotificationController.saveAndSendNotification({
+      userId: userId,
+      title: '✅ Subscription Reactivated',
+      body: `Your "${subscription.planName}" subscription has been reactivated and will continue to renew automatically.`,
+      type: 'subscription_reactivated',
+      clickUrl: '/subscription/status',
+      priority: 'medium'
+    }, 'user', { push_notification: true, email_notification: true });
+
     return subscription;
   }
 
@@ -338,9 +374,22 @@ export async function activateSubscriptionFromPayment(params: {
     transactionId,
   });
 
+  // const lawyer =
+
+  // Notify user of successful activation
+  await NotificationController.saveAndSendNotification({
+    userId: subscription.userId.toString(),
+    title: isPlanChange ? '🔄 Plan Changed Successfully' : '✅ Subscription Activated!',
+    body: isPlanChange 
+      ? `Your plan has been changed to "${subscription.planName}". Welcome to your new plan!`
+      : `Your "${subscription.planName}" subscription is now active. Start enjoying premium features!`,
+    type: isPlanChange ? 'plan_changed' : 'subscription_activated',
+    clickUrl: '/subscription/status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   return { success: true, subscription };
 }
-
 // ==================== ADMIN: PLANS ====================
 
 export async function adminListPlans(params: ListPlansParams = {}) {
@@ -534,6 +583,16 @@ export async function adminUpdateSubscriber(
   }
 
   await subscription.save();
+
+  // Notify user of admin update
+  await NotificationController.saveAndSendNotification({
+    userId: subscription.userId.toString(),
+    title: '📋 Subscription Updated by Admin',
+    body: `Your subscription status has been updated to: ${subscription.status}`,
+    type: 'subscription_admin_updated',
+    clickUrl: '/subscription/status',
+    priority: 'medium'
+  }, 'user', { push_notification: true, email_notification: true });
 
   AuditLogModel.create({
     adminId: admin.adminId,

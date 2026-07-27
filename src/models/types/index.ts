@@ -4,42 +4,42 @@ import { Document, ObjectId, Types } from 'mongoose';
 
 export enum UserRole {
   CITIZEN = 'citizen',
-  LAWYER  = 'lawyer',
-  ADMIN   = 'admin',
-  SUPER_ADMIN   = 'admin',
+  LAWYER = 'lawyer',
+  ADMIN = 'admin',
+  SUPER_ADMIN = 'admin',
 }
 
 export enum ConsultMode {
   MESSAGE = 'message',
-  CALL    = 'call',
-  VIDEO   = 'video',
+  CALL = 'call',
+  VIDEO = 'video',
 }
 
-export type ConsultStatus = 
+export type ConsultStatus =
   | "pending"
   | "paid"
   | "processing"
-  | "awaiting_lawyer" 
-  | "active" 
-  | "completed" 
-  | "disputed" 
-  | "cancelled" 
+  | "awaiting_lawyer"
+  | "active"
+  | "completed"
+  | "disputed"
+  | "cancelled"
   | "refunded";
 
 
 export enum VerificationStatus {
-  PENDING          = 'pending',
-  INFO_NEEDED      = 'info_requested',
+  PENDING = 'pending',
+  INFO_NEEDED = 'info_requested',
   CREDENTIAL_CHECK = 'credential_check',
-  TRAINING         = 'training',
-  ASSESSMENT       = 'assessment',
-  VERIFIED         = 'approved',
-  REJECTED         = 'rejected',
+  TRAINING = 'training',
+  ASSESSMENT = 'assessment',
+  VERIFIED = 'approved',
+  REJECTED = 'rejected',
 }
 
 export enum LawyerBadge {
-  VERIFIED   = 'Verified Lawyer',
-  TOP_RATED  = 'Top Rated',
+  VERIFIED = 'Verified Lawyer',
+  TOP_RATED = 'Top Rated',
   RESPONSIVE = 'Responsive',
 }
 
@@ -93,11 +93,11 @@ export enum AuditAction {
   VERIFICATION_APPROVED = "verification_approved",
   VERIFICATION_INFO_REQUEST = "verification_info_request",
   VERIFICATION_REJECTED = "verification_rejected",
-  DOCUMENT_VERIFIED  = "document_verified",
-  LAWYER_STATUS_CHANGED  = "lawyer_status_changed",
+  DOCUMENT_VERIFIED = "document_verified",
+  LAWYER_STATUS_CHANGED = "lawyer_status_changed",
 
   // library
-   BOOK_CREATED = 'book_created',
+  BOOK_CREATED = 'book_created',
   BOOK_UPDATED = 'book_updated',
   BOOK_DELETED = 'book_deleted',
   ORDER_UPDATED = 'order_updated',
@@ -189,7 +189,7 @@ export interface IUser extends BaseModel {
   jurisdictionCode: string;
   legalInterestAreas: string[];
 
-  
+
   // Privacy toggles
   showActivityPublic: boolean;
   allowAnonymousAnalytics: boolean;
@@ -313,7 +313,7 @@ export interface ILawyerProfile extends BaseModel {
 
 // Admin User 
 
-export interface IAdminUser extends BaseModel  {
+export interface IAdminUser extends BaseModel {
   name: string;
   email: string;
   passwordHash: string;
@@ -367,6 +367,7 @@ export interface IConsultation extends BaseModel {
   lawyerId: ObjectId;
   lawyerProfileId: ObjectId;
   conversationId: ObjectId;
+  requestId?: ObjectId;
   mode: ConsultMode;
   topic: string;
   detail?: string;
@@ -379,7 +380,7 @@ export interface IConsultation extends BaseModel {
   receiptId?: string;
   paymentRef?: string;
   disputed?: boolean;
-  disputeReason?:string;
+  disputeReason?: string;
   disputeRaisedAt?: Date;
   citizenRating?: number;
   citizenReview?: string;
@@ -413,6 +414,7 @@ export interface IScheduledCall {
 /** A lightweight snapshot of a lawyer recommended to a citizen for a given match request. */
 export interface IRecommendedLawyer {
   lawyerId: ObjectId;
+  picture: string;
   lawyerProfileId: ObjectId;
   name: string;
   initials: string;
@@ -423,6 +425,7 @@ export interface IRecommendedLawyer {
 
 export type MatchRequestStatus =
   | 'pending'       // just submitted, not yet reviewed
+  | 'paid'       // Payment made, not yet reviewed
   | 'unassigned'    // legacy alias of "pending"
   | 'in_review'     // an admin has accepted it and is working the case
   | 'ready_for_call' // admin has scheduled a call/video consultation with the citizen
@@ -448,6 +451,11 @@ export interface ILawyerRequest extends BaseModel {
   /** Additional context the citizen shared for whoever ends up handling the case. */
   notes?: string;
   status: MatchRequestStatus;
+
+  //  Payment 
+  isCharged?: boolean;
+  receiptId?: string;
+  paymentRef?: string;
 
   //  Documents 
   documents: IConsultationDocumentMeta[];

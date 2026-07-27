@@ -3,17 +3,17 @@ import { Response } from 'express';
 import { Types } from 'mongoose';
 import { IUserDocument, UserModel } from '../models/User.model';
 import { CitizenProfileModel } from '../models/CitizenProfile.model';
-import { LawyerProfileModel }  from '../models/LawyerProfile.model';
+import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
 import { UserRole } from '../models/types';
-
+import NotificationController from '../controllers/others/notification';
 //  Cookie config 
 
 const BASE_COOKIE_OPTS = {
   httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
+  secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
-  path:     '/',
+  path: '/',
 };
 
 const REFRESH_TTL_MS =
@@ -26,12 +26,12 @@ const REFRESH_TTL_MS =
  * resetPassword, updatePassword.
  */
 export function sendTokenResponse(
-  res:        Response,
-  user:       IUserDocument,
+  res: Response,
+  user: IUserDocument,
   statusCode: number = 200,
-  message:    string = 'Success'
+  message: string = 'Success'
 ): Response {
-  const accessToken  = user.signAccessToken();
+  const accessToken = user.signAccessToken();
   const refreshToken = user.signRefreshToken(); // also mutates user.refreshToken
 
   // Persist the stored refresh token (fire-and-forget,  don't block response)
@@ -41,6 +41,8 @@ export function sendTokenResponse(
     ...BASE_COOKIE_OPTS,
     expires: new Date(Date.now() + REFRESH_TTL_MS),
   });
+
+  console.log(user.toSafeObject())
 
   return res.status(statusCode).json({
     success: true,
@@ -71,7 +73,7 @@ export function hashToken(raw: string): string {
 
 export async function findActiveUser(id: string | Types.ObjectId): Promise<IUserDocument> {
   const user = await UserModel.findById(id);
-  if (!user)          throw new AppError('User not found.', 404, 'NOT_FOUND');
+  if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');
   if (!user.isActive) throw new AppError('Your account has been deactivated.', 403, 'FORBIDDEN');
   return user;
 }
@@ -87,14 +89,32 @@ export async function findActiveUser(id: string | Types.ObjectId): Promise<IUser
 export async function createProfileAfterRegister(user: IUserDocument): Promise<void> {
   if (user.role === UserRole.CITIZEN) {
     await CitizenProfileModel.create({ userId: user._id });
+
+    await NotificationController.saveAndSendNotification({
+      userId: user._id.toString(),
+      title: 'Welcome to LawTicha! 🎉',
+      body: `Welcome ${user.firstName}! Start exploring legal resources, consultations, and learning modules.`,
+      type: 'welcome',
+      clickUrl: '/dashboard',
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
   }
 
   if (user.role === UserRole.LAWYER) {
     await LawyerProfileModel.create({
       userId: user._id,
-      fees:   { message: 0, call: 0, video: 0 },
+      fees: { message: 0, call: 0, video: 0 },
       // verificationStatus defaults to 'pending' in the schema
     });
+
+    await NotificationController.saveAndSendNotification({
+      userId: user._id.toString(),
+      title: 'Welcome to LawTicha Legal Network! ⚖️',
+      body: `Welcome ${user.firstName}! Complete your verification to start accepting consultations.`,
+      type: 'welcome',
+      clickUrl: '/lawyer/verification',
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
   }
 }
 

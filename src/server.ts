@@ -71,6 +71,7 @@ app.get('/health', (_req, res) => {
 
 import learnRoutes from './routes/learn.routes';
 import otherRoutes from './routes/others.routes';
+import notificationRoute from './routes/notification.routes';
 import communityRoutes from './routes/community.routes';
 import dashboardRoutes from './routes/dashboard.routes'
 
@@ -111,6 +112,7 @@ app.use('/api/v1/payment', paymentRoutes);
 // Mount the routes (adjust base path as needed)
 // Public
 app.use('/api/v1', otherRoutes);
+app.use('/api/v1/notifications', notificationRoute);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/learn', learnRoutes);
 app.use('/api/v1/community', communityRoutes);

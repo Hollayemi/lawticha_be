@@ -2,8 +2,9 @@ import axios, { AxiosResponse } from 'axios';
 import crypto from 'crypto';
 import PaymentLogging from './paymentLogging';
 import {BookOrderModel} from '../../models/BookOrder.model';
-import { ConsultationModel } from '../../models';
+import { ConsultationModel, LawyerRequestModel } from '../../models';
 import { activateSubscriptionFromPayment } from '../subscription.service';
+import { AppError } from '../../middleware/error';
 
 interface PaymentData {
     email: string;
@@ -112,13 +113,14 @@ class PaymentGateway extends PaymentLogging {
                 provider: 'paystack'
             };
         } catch (error: any) {
-            console.error('Paystack initialization error:', error.response?.data || error.message);
-            this.initializationFailed({ meta: paymentData });
-            return {
-                success: false,
-                error: error.response?.data?.message || 'Payment initialization failed',
-                provider: 'paystack'
-            };
+            console.error('', error.response?.data || error.message);
+            throw new AppError('Paystack initialization error:', 404, 'NOT_FOUND');
+            // this.initializationFailed({ meta: paymentData });
+            // return {
+            //     success: false,
+            //     error: error.response?.data?.message || 'Payment initialization failed',
+            //     provider: 'paystack'
+            // };
         }
     }
 
@@ -272,6 +274,19 @@ class PaymentGateway extends PaymentLogging {
                 }
                 await consultation?.updateStatus("paid", 'Payment completed successfully');
                 await consultation?.updateStatus("awaiting_lawyer", 'Wait for lawyer to accept the consultation request');
+            }
+
+            if (reference?.startsWith("PAY_RST")) {
+                const lawyerRequest = await LawyerRequestModel.findOne({ _id: metadata.coreId });
+                if (!lawyerRequest) {
+                    return {
+                        success: false,
+                        error: 'consultation not found for this payment',
+                        provider: 'paystack'
+                    }
+                }
+                await lawyerRequest?.updateStatus("paid", 'Payment completed successfully');
+                await lawyerRequest?.updateStatus("unassigned", 'Wait for out team to review your request');
             }
 
             if (reference?.startsWith("PAY_SUB")) {

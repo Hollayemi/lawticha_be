@@ -211,25 +211,7 @@ export const selectRecommendedLawyerHandler = asyncHandler(
       lawyerProfileId
     );
 
-    const paymentGateway = new PaymentGateway();
-    const paymentReference = paymentGateway.generatePaymentReference(result.book.receiptId);
-    const paymentResult = await paymentGateway.initializePayment('paystack', {
-      email: req.user!.email,
-      amount: result.book.fee,
-      reference: paymentReference,
-      coreId: result.book.consultationId.toString(),
-      userId: req.user?.id,
-      description: 'Consultation Payment',
-      phone: req.user!.phone || '',
-      metadata: {
-        type: 'purchase',
-        coreId: result.book.consultationId.toString(),
-        orderSlug: result.book.receiptId,
-        redirect: 'consultations',
-      },
-    });
-
-    return (res as AppResponse).data({ result, payment: paymentResult }, 'Lawyer selected — proceed to payment.');
+    return (res as AppResponse).data({ result}, 'Lawyer selected — proceed to payment.');
   },
 );
 

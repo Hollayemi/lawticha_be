@@ -3,6 +3,7 @@ import { SubTopicModel, TopicModel, ModuleModel, ActivityModel } from '../models
 import { SubtopicActivityModel, SubtopicBookmarkModel } from '../models/SubtopicEngagement.model';
 import { UserModel } from '../models/User.model';
 import { AppError } from '../middleware/error';
+import NotificationController from '../controllers/others/notification';
 
 async function loadSubtopicContext(subtopicId: string) {
   if (!Types.ObjectId.isValid(subtopicId)) {
@@ -75,14 +76,19 @@ export async function toggleLikeSubtopic(subtopicId: string, citizenId: string) 
   subtopic.likesCount = Math.max(0, subtopic.likesCount + (nowLiked ? 1 : -1));
   await subtopic.save();
 
+  // Notify when someone likes (only if liked, not unliked)
   if (nowLiked) {
-    // await recordActivity({
-    //   userId: citizenId,
-    //   action: 'liked',
-    //   targetTitle: subtopic.title,
-    //   targetId: subtopic._id,
-    //   moduleId: subtopic.moduleId,
-    // });
+    const topic = await TopicModel.findById(subtopic.topicId);
+    const module = await ModuleModel.findById(subtopic.moduleId);
+    
+    await NotificationController.saveAndSendNotification({
+      userId: citizenId,
+      title: '❤️ You Liked a Subtopic',
+      body: `You liked "${subtopic.title}" from "${topic?.title || 'Topic'}" in "${module?.title || 'Module'}"`,
+      type: 'subtopic_liked',
+      clickUrl: `/learn/modules/${module?._id}/topics/${topic?._id}/subtopics/${subtopic._id}`,
+      priority: 'low'
+    }, 'user', { push_notification: true });
   }
 
   return {
@@ -125,14 +131,31 @@ export async function toggleCompleteSubtopic(subtopicId: string, citizenId: stri
   subtopic.completedBy = Math.max(0, subtopic.completedBy + (nowCompleted ? 1 : -1));
   await subtopic.save();
 
+  // Notify on completion
   if (nowCompleted) {
-    // await recordActivity({
-    //   userId: citizenId,
-    //   action: 'completed',
-    //   targetTitle: subtopic.title,
-    //   targetId: subtopic._id,
-    //   moduleId: subtopic.moduleId,
-    // });
+    const topic = await TopicModel.findById(subtopic.topicId);
+    const module = await ModuleModel.findById(subtopic.moduleId);
+    
+    // Get all subtopics in this topic to check if topic is complete
+    const allSubtopics = await SubTopicModel.find({ topicId: subtopic.topicId });
+    const userActivities = await SubtopicActivityModel.find({
+      citizenId: new Types.ObjectId(citizenId),
+      subtopicId: { $in: allSubtopics.map(st => st._id) },
+      completed: true,
+    });
+    
+    const isTopicComplete = allSubtopics.length > 0 && userActivities.length === allSubtopics.length;
+    
+    await NotificationController.saveAndSendNotification({
+      userId: citizenId,
+      title: isTopicComplete ? '🎉 Topic Complete!' : '✅ Subtopic Completed',
+      body: isTopicComplete 
+        ? `You've completed all subtopics in "${topic?.title || 'Topic'}"! Great job!`
+        : `You completed "${subtopic.title}" from "${topic?.title || 'Topic'}"`,
+      type: isTopicComplete ? 'topic_completed' : 'subtopic_completed',
+      clickUrl: `/learn/modules/${module?._id}/topics/${topic?._id}`,
+      priority: isTopicComplete ? 'high' : 'medium'
+    }, 'user', { push_notification: true });
   }
 
   return {
@@ -319,6 +342,16 @@ export async function createBookmark(input: CreateBookmarkInput) {
     endOffset,
   });
 
+  // Notify user of bookmark creation
+  await NotificationController.saveAndSendNotification({
+    userId: citizenId,
+    title: '🔖 Bookmark Created',
+    body: `You bookmarked "${highlightedText.substring(0, 50)}${highlightedText.length > 50 ? '...' : ''}" from "${subtopic.title}"`,
+    type: 'bookmark_created',
+    clickUrl: `/learn/subtopics/${subtopicId}/bookmarks`,
+    priority: 'low'
+  }, 'user', { push_notification: true });
+
   return toBookmarkDto(bookmark);
 }
 
@@ -427,4 +460,14 @@ export async function deleteBookmark(bookmarkId: string, citizenId: string) {
   if (!result) {
     throw new AppError('Bookmark not found.', 404, 'NOT_FOUND');
   }
+
+  // Notify user of bookmark deletion
+  await NotificationController.saveAndSendNotification({
+    userId: citizenId,
+    title: '🗑️ Bookmark Removed',
+    body: `Your bookmark from "${result.subtopicTitle}" has been removed.`,
+    type: 'bookmark_deleted',
+    clickUrl: `/learn/subtopics/${result.subtopicId}/bookmarks`,
+    priority: 'low'
+  }, 'user', { push_notification: true });
 }

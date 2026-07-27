@@ -6,6 +6,7 @@ import { AuditAction, UserStatusVariant } from '../models/types';
 import { AppError } from '../middleware/error';
 import cloudinary from '../utils/cloudinary';
 import { LawyerProfileModel } from '../models';
+import NotificationController from '../controllers/others/notification';
 
 //  Types 
 
@@ -77,19 +78,15 @@ export async function updateCitizenProfile(
   const user = await UserModel.findById(userId);
   if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');
 
-
   const USER_FIELDS = [
     'lastName', 'email', 'state', 'firstName',
-    // Preferences
     'phone', 'stateCode', 'bio', 'preferredLanguage', 'jurisdictionCode',
     'legalInterestAreas', 'theme', 'fontSize', 'accentColor',
     'reducedMotion', 'highContrast', 'dyslexicFont',
-    // notification
     'notifEmail', 'notifSms', 'notifPush', 'notifInAppBadge',
     'notifLawyerResponse', 'notifConsultReminder', 'notifMatchAlert',
     'notifMessages', 'notifReviewReminder', 'notifWeeklyDigest',
     'notifStreakReminder', 'notifPlatformUpdates', 'notifLegalNews', 'notifPromotional',
-    // privacy
     'showActivityPublic', 'allowAnonymousAnalytics', 'personalizedRecommend', 'showProfileInCommunity',
   ] as const;
 
@@ -103,7 +100,20 @@ export async function updateCitizenProfile(
       (user as any)[key] = input[key];
     }
   }
-  return user.save();
+  
+  const savedUser = await user.save();
+  
+  // Send notification for profile update
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: 'Profile Updated ✅',
+    body: 'Your profile has been successfully updated.',
+    type: 'profile_update',
+    clickUrl: '/profile',
+    priority: 'low'
+  }, 'user', { push_notification: true });
+
+  return savedUser;
 }
 
 export async function awardXP(
@@ -117,8 +127,21 @@ export async function awardXP(
   await profile.addXP(points);
   await profile.markActivity();
 
+  // Send XP earned notification for significant milestones
+  if (points >= 50) {
+    await NotificationController.saveAndSendNotification({
+      userId: userId,
+      title: '🎯 XP Earned!',
+      body: `You earned ${points} XP${reason ? ` for ${reason}` : ''}. Keep learning!`,
+      type: 'xp_earned',
+      clickUrl: '/dashboard',
+      priority: 'medium'
+    }, 'user', { push_notification: true });
+  }
+
   return profile;
 }
+
 
 //  List citizens (admin) 
 
@@ -191,12 +214,24 @@ export async function updateCitizenStatus(
     meta: { action, reason },
   }).catch(() => null);
 
+  // Notify citizen about status change
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: action === 'active' ? 'Account Reactivated ✅' : 'Account Suspended ⚠️',
+    body: action === 'active' 
+      ? 'Your account has been reactivated. You can now access all features.' 
+      : `Your account has been suspended. Reason: ${reason}`,
+    type: 'account_status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   return {
     message: `Citizen ${action === 'suspended' ? 'suspended' : 'reactivated'}.`,
     userId,
     isActive: user.isActive,
   };
 }
+
 
 //  Admin: send email to citizen (stub) 
 

@@ -6,6 +6,7 @@ import { UserModel } from '../models/User.model';
 import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
 import { generateSlug } from '../utils/functions';
+import NotificationController from '../controllers/others/notification';
 
 // Types
 export type LearnTabKey = 'all' | 'active' | 'complete' | 'saved';
@@ -355,7 +356,6 @@ export async function generateAndSaveSummary(slug: string, max_words: number = 5
   }
 
   const data = await response.json() as any;
-
   await ModuleModel.findOneAndUpdate({ slug }, { $set: { materialSummary:data } });
 
   // Log the summary for debugging
@@ -682,6 +682,17 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
       existingEnrollment.isSaved = false;
       await existingEnrollment.save();
     }
+    
+    // Notify user of enrollment continuation
+    await NotificationController.saveAndSendNotification({
+      userId: citizenId,
+      title: '📚 Continuing Your Module',
+      body: 'You\'re already enrolled in this module. Keep learning!',
+      type: 'enrollment_continued',
+      clickUrl: `/learn/modules/${moduleId}`,
+      priority: 'low'
+    }, 'user', { push_notification: true });
+    
     return {
       _id: moduleId,
       enrolledAt: existingEnrollment.startedAt.toISOString(),
@@ -703,6 +714,19 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
   await ModuleModel.findByIdAndUpdate(moduleId, {
     $inc: { enrolledCount: 1 },
   });
+
+  // Get module title for notification
+  const module = await ModuleModel.findById(moduleId);
+  
+  // Notify user of enrollment
+  await NotificationController.saveAndSendNotification({
+    userId: citizenId,
+    title: '🎓 New Module Enrolled',
+    body: `You have successfully enrolled in "${module?.title || 'Module'}". Start learning now!`,
+    type: 'module_enrolled',
+    clickUrl: `/learn/modules/${moduleId}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
 
   return {
     _id: moduleId,
@@ -791,6 +815,29 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
         month: new Date().getMonth() + 1,
       });
     }
+
+    // Notify user of topic completion
+    await NotificationController.saveAndSendNotification({
+      userId: citizenId,
+      title: `✅ Topic Complete: ${topic?.title || 'Lesson'}`,
+      body: `You completed a topic! +50 XP. Keep up the great work!`,
+      type: 'topic_completed',
+      clickUrl: `/learn/modules/${moduleId}`,
+      priority: 'medium'
+    }, 'user', { push_notification: true });
+  }
+
+  // If certificate unlocked, send celebration notification
+  if (certificateUnlocked) {
+    const module = await ModuleModel.findById(moduleId);
+    await NotificationController.saveAndSendNotification({
+      userId: citizenId,
+      title: '🎉 Module Complete!',
+      body: `Congratulations! You've completed "${module?.title || 'the module'}" and earned your certificate!`,
+      type: 'module_completed',
+      clickUrl: `/learn/modules/${moduleId}/certificate`,
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
   }
 
   // Get total XP for citizen

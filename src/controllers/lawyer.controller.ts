@@ -18,13 +18,13 @@ import {
   getFilterCounts,
   getMarketplaceLawyers,
   getLawyerByNbaNumber,
-  bookConsultation,
   requestLawyerMatch,
   getLawyerAvailability,
   submitReview,
 } from '../services/lawyer.service';
 import PaymentGateway from '../services/payment/payment';
 import logger from '../utils/logger';
+import { bookConsultation } from '../services/consultation.service';
 
 //  Helper 
 function adminCtx(req: Request) {
@@ -270,7 +270,7 @@ export const getMarketplaceLawyersHandler = asyncHandler(
       subscribedOnly,
     } = req.query as Record<string, string>;
 
-    logger.info("info",req.query)
+    logger.info("info", req.query)
 
     const result = await getMarketplaceLawyers({
       specialism,
@@ -304,9 +304,9 @@ export const getLawyerByNbaNumberHandler = asyncHandler(
  */
 export const bookConsultationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { lawyerNbaNumber, mode, topic, description, preferredTimeSlot } = req.body;
+    const { lawyerNbaNumber, mode, topic, description,  } = req.body;
 
-    if(!req.user) return next(new AppError('Invalid User.', 400, 'VALIDATION_ERROR'));
+    if (!req.user) return next(new AppError('Invalid User.', 400, 'VALIDATION_ERROR'));
 
     if (!lawyerNbaNumber) return next(new AppError('Lawyer SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!mode) return next(new AppError('Consultation mode is required.', 400, 'VALIDATION_ERROR'));
@@ -351,7 +351,7 @@ export const bookConsultationHandler = asyncHandler(
  */
 export const requestLawyerMatchHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { specialism, topic, mode, urgency, location, description, notes, documents } = req.body;
+    const { specialism, topic, mode, urgency, location, description, notes, documents, waiver } = req.body;
 
     if (!specialism?.trim()) return next(new AppError('Specialism is required.', 400, 'VALIDATION_ERROR'));
     if (!urgency) return next(new AppError('Urgency is required.', 400, 'VALIDATION_ERROR'));
@@ -363,6 +363,34 @@ export const requestLawyerMatchHandler = asyncHandler(
       return next(new AppError('Each document needs a name and base64 file.', 400, 'VALIDATION_ERROR'));
     }
     const result = await requestLawyerMatch(req.user!._id.toString(), req.body);
+
+    let paymentResult;
+    if (!waiver) {
+      result.paymentResult = null;
+
+   
+
+      const paymentGateway = new PaymentGateway();
+      const paymentReference = paymentGateway.generatePaymentReference(result.receiptId);
+
+      result.paymentResult = await paymentGateway.initializePayment('paystack', {
+        email: req.user!.email,
+        amount: 15000,
+        reference: paymentReference,
+        coreId: result.requestId.toString(),
+        userId: req.user?.id,
+        description: 'Consultation Payment',
+        phone: req.user!.phone || '',
+        metadata: {
+          type: 'purchase',
+          coreId: result.requestId,
+          orderSlug: result.receiptId,
+          redirect: `consultations/requests/${result.requestId}`,
+        },
+      });
+
+      if (!result.paymentResult ) throw new AppError('Failed to initialize Payment', 404, 'NOT_FOUND');
+    }
     return (res as AppResponse).data(result, 'Match request submitted.');
   }
 );

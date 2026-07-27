@@ -15,6 +15,7 @@ import {
   ICommunityPost
 } from '../models/types/community.types';
 import cloudinary from '../utils/cloudinary';
+import NotificationController from '../controllers/others/notification';
 
 // Helper: Build community user object
 async function buildCommunityUser(userId: Types.ObjectId): Promise<CommunityUser> {
@@ -257,7 +258,7 @@ export async function createPost(userId: string, input: CreatePostInput, files?:
   const reference = await buildReference(input.reference);
   
   // Upload images
-  const imageUrls =files ? await cloudinary.uploadMultipleFiles(files, 'community') : [];
+  const imageUrls = files ? await cloudinary.uploadMultipleFiles(files, 'community') : [];
   
   const post = await CommunityPostModel.create({
     title: input.title,
@@ -277,7 +278,17 @@ export async function createPost(userId: string, input: CreatePostInput, files?:
     isResolved: false,
     lastActivityAt: new Date(),
   });
-  
+
+  // Notify user of successful post creation
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: '📝 Post Created Successfully',
+    body: `Your post "${input.title.substring(0, 60)}${input.title.length > 60 ? '...' : ''}" has been published in ${roomConfig.name}.`,
+    type: 'post_created',
+    clickUrl: `/community/posts/${post._id}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
+
   return post;
 }
 
@@ -335,6 +346,45 @@ export async function createComment(
     await CommunityCommentModel.findByIdAndUpdate(input.parentId, {
       $push: { replies: comment._id }
     });
+  }
+
+  // Notify post author about new comment (if not the commenter themselves)
+  if (post.author.userId.toString() !== userId) {
+    await NotificationController.saveAndSendNotification({
+      userId: post.author.userId.toString(),
+      title: '💬 New Comment on Your Post',
+      body: `${author.name} commented on "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}"`,
+      type: 'comment_received',
+      clickUrl: `/community/posts/${postId}`,
+      priority: 'medium'
+    }, 'user', { push_notification: true });
+  }
+
+  // If this is a legal advice post and a lawyer answered, notify the OP
+  if (post.room === 'legal-advice' && isLawyerAnswer && post.author.userId.toString() !== userId) {
+    await NotificationController.saveAndSendNotification({
+      userId: post.author.userId.toString(),
+      title: '⚖️ Lawyer Responded to Your Legal Question',
+      body: `A lawyer has responded to your legal question in "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}"`,
+      type: 'lawyer_responded',
+      clickUrl: `/community/posts/${postId}`,
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
+  }
+
+  // If this is a reply to a parent comment, notify the parent comment author
+  if (input.parentId) {
+    const parentComment = await CommunityCommentModel.findById(input.parentId);
+    if (parentComment && parentComment.author.userId.toString() !== userId) {
+      await NotificationController.saveAndSendNotification({
+        userId: parentComment.author.userId.toString(),
+        title: '💬 Reply to Your Comment',
+        body: `${author.name} replied to your comment in "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}"`,
+        type: 'reply_received',
+        clickUrl: `/community/posts/${postId}`,
+        priority: 'medium'
+      }, 'user', { push_notification: true });
+    }
   }
   
   return comment;
@@ -420,6 +470,31 @@ export async function acceptAnswer(postId: string, commentId: string, userId: st
   await CommunityPostModel.findByIdAndUpdate(postId, {
     $set: { isResolved: true, resolvedBy: new Types.ObjectId(userId), resolvedAt: new Date() }
   });
+
+  // Get the comment author to notify them
+  const acceptedComment = await CommunityCommentModel.findById(commentId);
+  if (acceptedComment && acceptedComment.author.userId.toString() !== userId) {
+    await NotificationController.saveAndSendNotification({
+      userId: acceptedComment.author.userId.toString(),
+      title: '✅ Your Answer Was Accepted!',
+      body: `Your answer to "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}" has been accepted as the solution.`,
+      type: 'answer_accepted',
+      clickUrl: `/community/posts/${postId}`,
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
+  }
+
+  // Notify OP that their post is resolved
+  if (post.author.userId.toString() !== userId) {
+    await NotificationController.saveAndSendNotification({
+      userId: post.author.userId.toString(),
+      title: '✅ Your Question Has Been Resolved',
+      body: `You have marked your question "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}" as resolved.`,
+      type: 'post_resolved',
+      clickUrl: `/community/posts/${postId}`,
+      priority: 'medium'
+    }, 'user', { push_notification: true });
+  }
   
   return { message: 'Answer accepted successfully' };
 }
@@ -433,6 +508,18 @@ export async function pinPost(postId: string, adminCtx: any) {
   
   const newPinnedState = !post.isPinned;
   await CommunityPostModel.findByIdAndUpdate(postId, { $set: { isPinned: newPinnedState } });
+
+  // Notify post author about pinning
+  if (newPinnedState) {
+    await NotificationController.saveAndSendNotification({
+      userId: post.author.userId.toString(),
+      title: '📌 Your Post Has Been Pinned',
+      body: `Your post "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}" has been pinned by an admin.`,
+      type: 'post_pinned',
+      clickUrl: `/community/posts/${postId}`,
+      priority: 'high'
+    }, 'user', { push_notification: true });
+  }
   
   return { 
     message: newPinnedState ? 'Post pinned successfully' : 'Post unpinned successfully',
@@ -449,6 +536,18 @@ export async function lockPost(postId: string, adminCtx: any) {
   
   const newLockState = !post.isLocked;
   await CommunityPostModel.findByIdAndUpdate(postId, { $set: { isLocked: newLockState } });
+
+  // Notify post author about locking
+  await NotificationController.saveAndSendNotification({
+    userId: post.author.userId.toString(),
+    title: newLockState ? '🔒 Your Post Has Been Locked' : '🔓 Your Post Has Been Unlocked',
+    body: newLockState 
+      ? `Your post "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}" has been locked. No new comments can be added.`
+      : `Your post "${post.title.substring(0, 50)}${post.title.length > 50 ? '...' : ''}" has been unlocked. Comments are now allowed.`,
+    type: newLockState ? 'post_locked' : 'post_unlocked',
+    clickUrl: `/community/posts/${postId}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
   
   return { 
     message: newLockState ? 'Post locked successfully' : 'Post unlocked successfully',

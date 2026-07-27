@@ -16,6 +16,7 @@ import {
   BookStatus,
   OrderStatus,
 } from '../models/types/library.types';
+import NotificationController from '../controllers/others/notification';
 
 interface AdminCtx {
   adminId: string;
@@ -333,6 +334,26 @@ export async function createOrder(
   // Update book order count and stock
   await book.incrementOrderCount(input.quantity);
 
+  // Notify user of order creation
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: '📚 Order Placed Successfully',
+    body: `Your order for "${book.title}" (Order #${orderNumber}) has been placed. Total: ₦${totalAmount}`,
+    type: 'order_placed',
+    clickUrl: `/library/orders/${order._id}`,
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
+  // Notify admin of new order
+  await NotificationController.saveAndSendNotification({
+    userId: userId, // This would need to be replaced with admin user ID
+    title: '📦 New Book Order',
+    body: `Order #${orderNumber} placed for "${book.title}" by ${input.name}`,
+    type: 'new_order',
+    clickUrl: `/admin/library/orders/${order._id}`,
+    priority: 'high'
+  }, 'admin', { push_notification: true, email_notification: true });
+
   return order;
 }
 
@@ -345,6 +366,23 @@ export async function updateOrderStatus(
 
   const oldStatus = order.status;
   await order.updateStatus(payload.status, payload.trackingNumber);
+
+  // Notify user of order status update
+  const statusMessages: Record<string, string> = {
+    [OrderStatus.PROCESSING]: 'Your order is being processed.',
+    [OrderStatus.SHIPPED]: `Your order has been shipped! Tracking: ${payload.trackingNumber || 'N/A'}`,
+    [OrderStatus.DELIVERED]: 'Your order has been delivered. Enjoy your book!',
+    [OrderStatus.CANCELLED]: 'Your order has been cancelled.',
+  };
+
+  await NotificationController.saveAndSendNotification({
+    userId: order.userId.toString(),
+    title: `📦 Order Status Updated: ${payload.status}`,
+    body: statusMessages[payload.status] || `Your order status has been updated to ${payload.status}`,
+    type: 'order_status_updated',
+    clickUrl: `/library/orders/${order._id}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true, email_notification: true });
 
   await AuditLogModel.create({
     adminId: admin.adminId,
@@ -380,6 +418,28 @@ export async function updatePaymentStatus(
   }
 
   await order.save();
+
+  // Notify user of payment status
+  if (paymentStatus === 'paid') {
+    await NotificationController.saveAndSendNotification({
+      userId: order.userId.toString(),
+      title: '💰 Payment Successful',
+      body: `Your payment for "${order.bookTitle}" (Order #${order.orderNumber}) has been confirmed.`,
+      type: 'payment_confirmed',
+      clickUrl: `/library/orders/${order._id}`,
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
+  } else if (paymentStatus === 'failed') {
+    await NotificationController.saveAndSendNotification({
+      userId: order.userId.toString(),
+      title: '❌ Payment Failed',
+      body: `Your payment for "${order.bookTitle}" (Order #${order.orderNumber}) has failed. Please try again.`,
+      type: 'payment_failed',
+      clickUrl: `/library/orders/${order._id}`,
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
+  }
+
   return order;
 }
 

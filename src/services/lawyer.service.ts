@@ -10,6 +10,7 @@ import { lawyerObject } from '../helpers/formatReturn';
 import { updateProfile } from '../controllers/auth.controller';
 import { chatService } from '../server';
 import CloudinaryService from '../utils/cloudinary';
+import NotificationController from '../controllers/others/notification';
 
 //  Types 
 
@@ -93,6 +94,7 @@ export interface LawyerProfile {
 
 
 //  Get lawyer profile (with user) 
+export const generateRequestId = () => `RST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
 export async function getLawyerProfile(userId: string) {
   const [user, profile] = await Promise.all([
@@ -163,8 +165,29 @@ export async function submitVerification(
 
   await profile.save();
 
+  // Notify lawyer of verification submission
+  await NotificationController.saveAndSendNotification({
+    userId: userId,
+    title: '📋 Verification Submitted',
+    body: 'Your verification documents have been submitted. We\'ll review them within 24-48 hours.',
+    type: 'verification_submitted',
+    clickUrl: '/lawyer/verification-status',
+    priority: 'medium'
+  }, 'user', { push_notification: true, email_notification: true });
+
+  // Notify admin of new verification
+  await NotificationController.saveAndSendNotification({
+    userId: userId, // This would need to be replaced with admin user ID
+    title: '📋 New Verification Request',
+    body: `Lawyer ${userId} has submitted verification documents for review.`,
+    type: 'verification_pending',
+    clickUrl: '/admin/verifications',
+    priority: 'high'
+  }, 'admin', { push_notification: true, email_notification: true });
+
   return { message: 'Verification submitted successfully.', profile };
 }
+
 
 //  Update lawyer profile (non-verification fields) 
 
@@ -216,6 +239,27 @@ export async function advanceVerification(
   const prevStatus = profile.verificationStatus;
   await profile.advanceVerification(new Types.ObjectId(admin.adminId), note);
 
+  // Notify lawyer of verification progress
+  if (profile.verificationStatus === VerificationStatus.VERIFIED) {
+    await NotificationController.saveAndSendNotification({
+      userId: profile.userId.toString(),
+      title: '✅ Verification Approved!',
+      body: 'Congratulations! Your lawyer verification has been approved. You can now accept consultations.',
+      type: 'verification_approved',
+      clickUrl: '/lawyer/dashboard',
+      priority: 'high'
+    }, 'user', { push_notification: true, email_notification: true });
+  } else {
+    await NotificationController.saveAndSendNotification({
+      userId: profile.userId.toString(),
+      title: '📋 Verification Update',
+      body: `Your verification has been advanced to ${profile.verificationStatus}. ${note || ''}`,
+      type: 'verification_updated',
+      clickUrl: '/lawyer/verification-status',
+      priority: 'medium'
+    }, 'user', { push_notification: true });
+  }
+
   AuditLogModel.create({
     adminId: admin.adminId,
     adminName: admin.adminName,
@@ -246,6 +290,17 @@ export async function rejectVerification(
   } else {
     await profile.rejectVerification(new Types.ObjectId(admin.adminId), reason);
   }
+  
+  // Notify lawyer of rejection
+  await NotificationController.saveAndSendNotification({
+    userId: profile.userId.toString(),
+    title: '❌ Verification Rejected',
+    body: `Your verification request has been rejected. Reason: ${reason || 'Please contact support for more information.'}`,
+    type: 'verification_rejected',
+    clickUrl: '/lawyer/verification-status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   AuditLogModel.create({
     adminId: admin.adminId,
     adminName: admin.adminName,
@@ -378,6 +433,17 @@ export async function updateLawyerStatus(
   }
 
   await Promise.all([user.save({ validateBeforeSave: false }), profile.save()]);
+
+  // Notify lawyer of status change
+  await NotificationController.saveAndSendNotification({
+    userId: profile.userId.toString(),
+    title: action === 'suspend' ? '⚠️ Account Suspended' : '✅ Account Reactivated',
+    body: action === 'suspend' 
+      ? `Your account has been suspended. Reason: ${reason || 'Please contact support.'}` 
+      : 'Your account has been reactivated. You can now accept consultations.',
+    type: 'account_status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
 
   AuditLogModel.create({
     adminId: admin.adminId,
@@ -679,100 +745,6 @@ export async function getLawyerByNbaNumber(nbaNumber: string) {
   return lawyerObject(profile)
 }
 
-/**
- * Book a consultation (create new consultation)
- * POST /marketplace/consultations
- */
-export interface BookConsultationInput {
-  lawyerNbaNumber: string;
-  mode: 'message' | 'call' | 'video';
-  topic: string;
-  description?: string;
-}
-
-export const receiptId = `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-
-export async function bookConsultation(citizenId: string, citizenName: string, input: BookConsultationInput) {
-  const { lawyerNbaNumber, mode, topic, description } = input;
-
-  // Find lawyer by SCN number
-  const profile = await LawyerProfileModel.findOne({ nbaNumber: lawyerNbaNumber })
-    .populate('userId', 'firstName lastName email avatarUrl')
-    .populate('specialisms', 'name displayName');
-  if (!profile) {
-    throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
-  }
-
-  if (!profile.isAvailable) {
-    throw new AppError('Lawyer is not available for consultations', 400, 'LAWYER_UNAVAILABLE');
-  }
-
-  // Get fee based on mode
-  let feePaid = 0;
-  switch (mode) {
-    case 'message':
-      feePaid = profile.fees?.message || 5000;
-      break;
-    case 'call':
-      feePaid = profile.fees?.call || 12000;
-      break;
-    case 'video':
-      feePaid = profile.fees?.video || 18000;
-      break;
-  }
-
-  // Create consultation
-  const consultation = await ConsultationModel.create({
-    citizenId,
-    lawyerId: profile.userId,
-    lawyerProfileId: profile._id,
-    mode,
-    topic,
-    detail: description,
-    status: 'pending',
-    feePaid,
-    receiptId,
-    timeline: [
-      { time: new Date(), label: 'Request sent', note: `Consultation requested via ${mode}` },
-    ],
-  });
-
-  const lawyerUser = profile.userId as any;
-
-  const conversation = await chatService.findOrCreateConversation({
-    contextType: 'consultation',
-    contextId: consultation._id.toString(),
-    participants: [
-      {
-        userId: new Types.ObjectId(citizenId),
-        role: 'citizen',
-        name: citizenName,
-      },
-      {
-        userId: lawyerUser._id.toString(),
-        role: 'lawyer',
-        name: `${lawyerUser.firstName} ${lawyerUser.lastName}`.trim(),
-        avatarUrl: lawyerUser.avatarUrl,
-      },
-    ],
-    metadata: {
-      consultationId: consultation._id.toString(),
-      mode: input.mode,
-      feePaid: feePaid,
-    },
-  });
-
-  await ConsultationModel.updateOne({ _id: consultation._id }, { $set: { conversationId: conversation.conversation._id } })
-
-  return {
-    consultationId: consultation._id,
-    receiptId,
-    status: consultation.status,
-    fee: feePaid,
-    lawyerResponseTime: profile.responseTimeLabel || 'Under 2 hours',
-    estimatedResponseAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
-  };
-}
 
 /**
  * Request a lawyer match (create match request)
@@ -813,6 +785,8 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
     });
   }
 
+  const receiptId = generateRequestId()
+
   const request = await LawyerRequestModel.create({
     citizenId,
     specialism: input.specialism,
@@ -825,6 +799,7 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
     waiver: input.waiver,
     waiverReason: input.waiverReason,
     whenHappened: input.whenHappened,
+    receiptId,
     documents,
     status: 'pending',
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -835,8 +810,10 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
 
   return {
     requestId: request._id,
+    receiptId,
     status: request.status,
     documentsAttached: documents.length,
+    paymentResult: null as any
   };
 }
 
@@ -936,6 +913,16 @@ export async function submitReview(citizenId: string, nbaNumber: string, input: 
 
     await awardXP(citizenId, 25); // 25 XP for leaving a review
   }
+
+  // Notify lawyer of new review
+  await NotificationController.saveAndSendNotification({
+    userId: consultation.lawyerId.toString(),
+    title: `⭐ New Review (${rating}/5)`,
+    body: `You received a new review: "${comment || 'No comment provided'}"`,
+    type: 'review_received',
+    clickUrl: `/lawyer/reviews`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
 
   return {
     reviewId: consultation._id,

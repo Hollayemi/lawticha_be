@@ -1,5 +1,5 @@
 import { Schema, model, models } from 'mongoose';
-import { ConsultStatus, IConsultation, ILawyerRequest } from './types';
+import { ConsultStatus, IConsultation, ILawyerRequest, MatchRequestStatus } from './types';
 
 const TimelineEventSchema = new Schema(
   {
@@ -57,6 +57,10 @@ const ConsultationSchema = new Schema<IConsultation>(
       type: Schema.Types.ObjectId,
       ref: 'ChatConversation',
     },
+    requestId: {
+      type: Schema.Types.ObjectId,
+      ref: 'LawyerRequest',
+    },
 
     //  Request details 
     mode: {
@@ -70,7 +74,7 @@ const ConsultationSchema = new Schema<IConsultation>(
     //  Status lifecycle 
     status: {
       type: String,
-      enum: ['pending', 'paid', 'awaiting_lawyer', 'active', 'accepted', 'completed', 'disputed', 'declined', 'cancelled'],
+      enum: ['pending', 'paid', 'waived', 'awaiting_lawyer', 'active', 'accepted', 'completed', 'disputed', 'declined', 'cancelled'],
       default: 'pending',
       index: true,
     },
@@ -172,7 +176,7 @@ const LawyerRequestSchema = new Schema<ILawyerRequest>(
     //  Status 
     status: {
       type: String,
-      enum: ['pending', 'unassigned', 'in_review', 'ready_for_call', 'matching', 'recommended', 'matched', 'accepted', 'completed', 'cancelled', 'expired'],
+      enum: ['pending', 'paid', 'waived', 'unassigned', 'in_review', 'ready_for_call', 'matching', 'recommended', 'matched', 'accepted', 'completed', 'cancelled', 'expired'],
       default: 'pending',
       index: true,
     },
@@ -180,6 +184,11 @@ const LawyerRequestSchema = new Schema<ILawyerRequest>(
     //  Documents 
     documents: { type: [ConsultationDocumentSchema], default: [] },
     caseBrief: { type: ConsultationDocumentSchema },
+
+    //  Payment 
+    isCharged: { type: Boolean, default: false },  // false until lawyer accepts
+    receiptId: { type: String },                   // "RCP-2025-04140098"
+    paymentRef: { type: String },                   // Paystack reference
 
     //  Admin handling 
     handledByAdminId: { type: Schema.Types.ObjectId, ref: 'Admin' },
@@ -229,6 +238,24 @@ const LawyerRequestSchema = new Schema<ILawyerRequest>(
 LawyerRequestSchema.index({ citizenId: 1, status: 1 });
 LawyerRequestSchema.index({ status: 1, specialism: 1, location: 1 });
 LawyerRequestSchema.index({ 'recommendedLawyers.lawyerId': 1, status: 1 });
+
+LawyerRequestSchema.methods.updateStatus = async function (
+  status: MatchRequestStatus,
+  details?: string,
+  trackingNumber?: string
+): Promise<void> {
+  this.status = status;
+  if (trackingNumber) {
+    this.trackingNumber = trackingNumber;
+  }
+
+  this.timeline.push({
+    label: `Status changed to ${status}`,
+    time: new Date(),
+    details: details || `Status updated to ${status}${trackingNumber ? ` with tracking number ${trackingNumber}` : ''}`,
+  });
+  await this.save();
+};
 
 export const LawyerRequestModel =
   models.LawyerRequest || model<ILawyerRequest>('LawyerRequest', LawyerRequestSchema);

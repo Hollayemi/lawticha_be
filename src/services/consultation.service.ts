@@ -14,10 +14,11 @@ import {
   IConsultationDocumentMeta,
   IRecommendedLawyer,
 } from '../models/types';
-import { bookConsultation, receiptId } from './lawyer.service';
 import PaymentGateway from './payment/payment';
 import CloudinaryService from '../utils/cloudinary';
-import { lawyerObject } from '../helpers/formatReturn';
+import NotificationController from '../controllers/others/notification';
+import PurchaseLog, { PaymentStatus } from '../models/billing/productPurchaseLog';
+import { chatService } from '../server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,8 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
+export const generateConsultId = () => `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
 function getRandomColor(): string {
   const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
   return colors[Math.floor(Math.random() * colors.length)];
@@ -122,11 +125,13 @@ async function uploadMatchDocument(
 function toRecommendedLawyerRef(profile: any): IRecommendedLawyer {
   console.log(profile)
   const user = profile.userId as any;
+  console.log({user})
   const name = user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Unknown';
   return {
     lawyerId: user?._id || profile.userId,
     lawyerProfileId: profile._id,
     name,
+    picture: user.avatarUrl,
     initials: getInitials(name),
     color: profile.colorA || getRandomColor(),
     nbaNumber: profile.nbaNumber || '',
@@ -188,7 +193,11 @@ function mapMatchRequestToDTO(req: any) {
     createdAt: req.createdAt?.toISOString(),
     expiresAt: req.expiresAt?.toISOString(),
     matchedLawyer: req.matchedLawyerProfileId,
-    matchedLawyerId: req.matchedLawyerId?.toString(),
+    matchedLawyerId: req.matchedLawyerId ? {
+      initials: getInitials(`${req.matchedLawyerId?.firstName} ${req.matchedLawyerId?.lastName}`),
+      name: `${req.matchedLawyerId?.firstName} ${req.matchedLawyerId?.lastName}`,
+      picture: req.matchedLawyerId.avatarUrl,
+    } : {},
     consultationId: req.consultationId?.toString(),
   };
 }
@@ -244,7 +253,7 @@ export async function formatConsultation(consult: any) {
     detail: consult.detail || '',
     status: consult.status,
     fee: consult.feePaid,
-    receiptId: consult.receiptId,
+    receiptId: consult.generateConsultId,
     platformFee: consult.platformFee || Math.round(consult.feePaid * 0.15),
     lawyerPayout: consult.lawyerPayout || Math.round(consult.feePaid * 0.85),
     createdAt: consult.createdAt?.toISOString(),
@@ -266,6 +275,107 @@ export async function formatConsultation(consult: any) {
 }
 
 // ─── CITIZEN SERVICES ─────────────────────────────────────────────────────────
+
+/**
+ * Book a consultation (create new consultation)
+ * POST /marketplace/consultations
+ */
+export interface BookConsultationInput {
+  lawyerNbaNumber: string;
+  mode: 'message' | 'call' | 'video';
+  topic: string;
+  description?: string;
+  receiptId?: string;
+  requestId?: string;
+  waiver?: boolean
+}
+
+export async function bookConsultation(citizenId: string, citizenName: string, input: BookConsultationInput) {
+  const { lawyerNbaNumber, mode, topic, description, waiver, requestId, receiptId: requestReceipt } = input;
+
+  // Find lawyer by SCN number
+  const profile = await LawyerProfileModel.findOne({ nbaNumber: lawyerNbaNumber })
+    .populate('userId', 'firstName lastName email avatarUrl')
+    .populate('specialisms', 'name displayName');
+  if (!profile) {
+    throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
+  }
+
+  if (!profile.isAvailable) {
+    throw new AppError('Lawyer is not available for consultations', 400, 'LAWYER_UNAVAILABLE');
+  }
+
+  // Get fee based on mode
+  let feePaid = 0;
+  switch (mode) {
+    case 'message':
+      feePaid = profile.fees?.message || 5000;
+      break;
+    case 'call':
+      feePaid = profile.fees?.call || 12000;
+      break;
+    case 'video':
+      feePaid = profile.fees?.video || 18000;
+      break;
+  }
+
+  const receiptId = requestReceipt ?? generateConsultId();
+
+  const verifyPayment = await PurchaseLog.findOne({"meta.coreId": requestId })
+
+
+  // Create consultation
+  const consultation = await ConsultationModel.create({
+    citizenId,
+    lawyerId: profile.userId,
+    lawyerProfileId: profile._id,
+    mode,
+    topic,
+    detail: description,
+    status: waiver ? "awaiting_lawyer" : verifyPayment?.payment_status === PaymentStatus.PAYMENT_CONFIRMED ? 'awaiting_lawyer' : 'pending',
+    feePaid,
+    receiptId,
+    timeline: [
+      { time: new Date(), label: 'Request sent', note: `Consultation requested via ${mode}` },
+    ],
+  });
+
+  const lawyerUser = profile.userId as any;
+
+  const conversation = await chatService.findOrCreateConversation({
+    contextType: 'consultation',
+    contextId: consultation._id.toString(),
+    participants: [
+      {
+        userId: new Types.ObjectId(citizenId),
+        role: 'citizen',
+        name: citizenName,
+      },
+      {
+        userId: lawyerUser._id.toString(),
+        role: 'lawyer',
+        name: `${lawyerUser.firstName} ${lawyerUser.lastName}`.trim(),
+        avatarUrl: lawyerUser.avatarUrl,
+      },
+    ],
+    metadata: {
+      consultationId: consultation._id.toString(),
+      mode: input.mode,
+      feePaid: feePaid,
+    },
+  });
+
+  await ConsultationModel.updateOne({ _id: consultation._id }, { $set: { conversationId: conversation.conversation._id } })
+
+  return {
+    consultationId: consultation._id,
+    receiptId,
+    status: consultation.status,
+    fee: feePaid,
+    lawyerResponseTime: profile.responseTimeLabel || 'Under 2 hours',
+    estimatedResponseAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+  };
+}
 
 /**
  * GET /consultations/citizen
@@ -383,6 +493,26 @@ export async function raiseDispute(consultationId: string, citizenId: string, re
   consult.timeline.push({ time: new Date(), label: 'Dispute raised', note: reason });
   await consult.save();
 
+  // Notify admin about dispute
+  await NotificationController.saveAndSendNotification({
+    userId: consult.lawyerId.toString(),
+    title: '⚠️ Dispute Raised',
+    body: `A dispute has been raised on consultation ${consultationId}. Reason: ${reason}`,
+    type: 'dispute_raised',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'admin', { push_notification: true, email_notification: true });
+
+  // Notify citizen that dispute was submitted
+  await NotificationController.saveAndSendNotification({
+    userId: citizenId,
+    title: 'Dispute Submitted 📝',
+    body: 'Your dispute has been submitted. Our team will review it within 24-48 hours.',
+    type: 'dispute_submitted',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
+
   return formatConsultation(consult);
 }
 
@@ -403,8 +533,19 @@ export async function requestRefund(consultationId: string, citizenId: string, r
   consult.timeline.push({ time: new Date(), label: 'Refund requested', note: reason || '' });
   await consult.save();
 
+  // Notify admin about refund request
+  await NotificationController.saveAndSendNotification({
+    userId: consult.lawyerId.toString(),
+    title: '💰 Refund Requested',
+    body: `A refund has been requested for consultation ${consultationId}.`,
+    type: 'refund_requested',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'admin', { push_notification: true, email_notification: true });
+
   return formatConsultation(consult);
 }
+
 
 /**
  * POST /consultations/citizen/:id/rating
@@ -467,6 +608,16 @@ export async function sendCitizenMessage(consultationId: string, citizenId: stri
 
   consult.transcript.push(message);
   await consult.save();
+
+  // Notify lawyer of new message
+  await NotificationController.saveAndSendNotification({
+    userId: consult.lawyerId.toString(),
+    title: '💬 New Message from Citizen',
+    body: `${senderName} sent you a message: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`,
+    type: 'message_received',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true });
 
   return { message, consultationId };
 }
@@ -580,8 +731,19 @@ export async function acceptConsultation(consultationId: string, lawyerId: strin
   consult.timeline.push({ time: new Date(), label: 'Consultation accepted by lawyer' });
   await consult.save();
 
+  // Notify citizen that lawyer accepted
+  await NotificationController.saveAndSendNotification({
+    userId: consult.citizenId.toString(),
+    title: '✅ Consultation Accepted',
+    body: 'Your consultation request has been accepted. Your lawyer will be with you shortly.',
+    type: 'consultation_accepted',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true });
+
   return formatConsultation(consult);
 }
+
 
 /**
  * POST /consultations/lawyer/:id/reject
@@ -602,6 +764,16 @@ export async function rejectConsultation(consultationId: string, lawyerId: strin
   consult.cancelledBy = 'lawyer';
   consult.timeline.push({ time: new Date(), label: 'Consultation rejected by lawyer', note: reason });
   await consult.save();
+
+  // Notify citizen that their request was declined
+  await NotificationController.saveAndSendNotification({
+    userId: consult.citizenId.toString(),
+    title: '❌ Consultation Declined',
+    body: `Your consultation request has been declined. Reason: ${reason || 'No reason provided'}`,
+    type: 'consultation_declined',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
 
   return formatConsultation(consult);
 }
@@ -624,7 +796,6 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
     id: new Types.ObjectId().toString(),
     sender: 'lawyer',
     senderName,
-    // store senderId as string to avoid ObjectId type conflicts
     senderId: new Types.ObjectId(lawyerId),
     text,
     time: new Date(),
@@ -633,6 +804,16 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
 
   consult.transcript.push(message);
   await consult.save();
+
+  // Notify citizen of new message
+  await NotificationController.saveAndSendNotification({
+    userId: consult.citizenId.toString(),
+    title: '💬 New Message from Lawyer',
+    body: `${senderName} sent you a message: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`,
+    type: 'message_received',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true });
 
   return { message, consultationId };
 }
@@ -659,8 +840,29 @@ export async function completeConsultation(consultationId: string, lawyerId: str
     $inc: { consultationCount: 1 },
   });
 
+  // Notify citizen of completion
+  await NotificationController.saveAndSendNotification({
+    userId: consult.citizenId.toString(),
+    title: '✅ Consultation Completed',
+    body: 'Your consultation has been marked as completed. Please leave a review!',
+    type: 'consultation_completed',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true });
+
+  // Notify lawyer
+  await NotificationController.saveAndSendNotification({
+    userId: lawyerId,
+    title: '✅ Consultation Completed',
+    body: `You have successfully completed consultation ${consultationId}.`,
+    type: 'consultation_completed',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'medium'
+  }, 'user', { push_notification: true });
+
   return formatConsultation(consult);
 }
+
 
 // ─── MATCH REQUEST SERVICES (Lawyer-facing) ───────────────────────────────────
 
@@ -705,72 +907,6 @@ export async function getMatchRequestsForLawyer(lawyerId: string, params: ListMa
   return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
-/**
- * POST /consultations/matches/:id/accept
- * A lawyer confirms a case the firm recommended them for. Whoever gets there
- * first — the lawyer confirming, or the citizen picking from their shortlist —
- * finalizes the match and creates the consultation.
- */
-export async function acceptMatchRequest(matchRequestId: string, lawyerId: string) {
-  const request = await LawyerRequestModel.findById(matchRequestId).populate('citizenId');
-  if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
-
-  if (request.status === 'matched') {
-    throw new AppError('This match request has already been claimed', 400, 'INVALID_STATUS');
-  }
-  if (request.status !== 'recommended') {
-    throw new AppError('This match request is not yet available to lawyers', 400, 'INVALID_STATUS');
-  }
-
-  const wasRecommended = (request.recommendedLawyers || []).some((l: IRecommendedLawyer) => l.lawyerId.toString() === lawyerId);
-  if (!wasRecommended) {
-    throw new AppError('You were not recommended for this case', 403, 'FORBIDDEN');
-  }
-
-  const profile = await LawyerProfileModel.findOne({ userId: new Types.ObjectId(lawyerId) }).populate('userId');
-  if (!profile) throw new AppError('Lawyer profile not found', 404, 'NOT_FOUND');
-
-  const user = profile.userId as any;
-  const lawyerName = user?.fullName || `${user?.firstName} ${user?.lastName}`.trim();
-  const citizen = request.citizenId as any;
-  const citizenName = citizen?.fullName || `${citizen?.firstName} ${citizen?.lastName}`.trim() || 'Unknown';
-
-  request.status = 'matched';
-  request.matchedLawyerId = new Types.ObjectId(lawyerId);
-  request.matchedLawyerProfileId = profile._id;
-  request.matchedLawyerName = lawyerName;
-  request.matchedAt = new Date();
-  request.timeline.push({ time: new Date(), label: `Confirmed by ${lawyerName}` });
-  await request.save();
-
-  const book = await bookConsultation(citizen._id.toString(), citizenName, {
-    lawyerNbaNumber: profile.nbaNumber,
-    mode: request.mode as any,
-    topic: request.topic || request.specialism,
-    description: [request.description, request.notes].filter(Boolean).join('\n\n'),
-  });
-
-  request.consultationId = book.consultationId;
-  await request.save();
-
-  return { id: request._id, citizen: { name: citizenName }, specialism: request.specialism, status: request.status, matchedLawyer: lawyerName, consultation: book };
-}
-
-/**
- * POST /consultations/matches/:id/reject
- * A lawyer declines a case they were recommended for — they're simply removed
- * from the shortlist so the citizen can still pick from the rest.
- */
-export async function rejectMatchRequest(matchRequestId: string, lawyerId: string, reason?: string) {
-  const request = await LawyerRequestModel.findById(matchRequestId);
-  if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
-
-  request.recommendedLawyers = (request.recommendedLawyers || []).filter((l: IRecommendedLawyer) => l.lawyerId.toString() !== lawyerId);
-  request.timeline.push({ time: new Date(), label: 'Lawyer declined the recommendation', note: reason || '' });
-  await request.save();
-
-  return { success: true };
-}
 
 // ─── CITIZEN MATCH REQUEST SERVICES ──────────────────────────────────────────
 
@@ -796,7 +932,7 @@ export async function getMatchRequestsForCitizen(citizenId: string, params: List
  * GET /consultations/citizen/match-requests/:id
  */
 export async function getMatchRequestForCitizen(matchRequestId: string, citizenId: string) {
-  const request = await LawyerRequestModel.findById(matchRequestId).populate('citizenId', 'firstName lastName fullName email phone state')
+  const request = await LawyerRequestModel.findById(matchRequestId).populate('citizenId', 'firstName lastName fullName email phone state').populate('matchedLawyerId',  'firstName lastName avatarUrl')
   if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
   const citizen = request.citizenId as any;
   if (citizen._id.toString() !== citizenId) throw new AppError('You do not have access to this request', 403, 'FORBIDDEN');
@@ -828,7 +964,6 @@ export async function addCitizenMatchDocument(matchRequestId: string, citizenId:
  * the match and creates the paid consultation (mirroring the direct-booking flow).
  */
 export async function citizenSelectRecommendedLawyer(matchRequestId: string, citizenId: string, citizenName: string, lawyerProfileId: string) {
-  
   const request = await LawyerRequestModel.findById(matchRequestId);
   if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
   if (request.citizenId.toString() !== citizenId) throw new AppError('You do not have access to this request', 403, 'FORBIDDEN');
@@ -857,13 +992,27 @@ export async function citizenSelectRecommendedLawyer(matchRequestId: string, cit
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
+    receiptId: request.receiptId,
+    requestId: matchRequestId,
+    waiver: request.waiver,
   });
 
   request.consultationId = book.consultationId;
   await request.save();
 
+  // Notify the selected lawyer
+  await NotificationController.saveAndSendNotification({
+    userId: chosen.lawyerId,
+    title: '👤 Citizen Selected You!',
+    body: `${citizenName} has selected you for their case. Consultation is now active.`,
+    type: 'lawyer_selected',
+    clickUrl: `/consultations/${book.consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true });
+
   return { book, ...mapMatchRequestToDTO(request) };
 }
+
 
 // ─── UTILITY SERVICES ─────────────────────────────────────────────────────────
 
@@ -1106,6 +1255,26 @@ export async function resolveDispute(consultationId: string, payload: ResolveDis
   consultation.timeline.push({ time: new Date(), label: `Dispute resolved in favor of ${payload.decision}`, note: payload.reason });
   await consultation.save();
 
+  // Notify citizen of dispute resolution
+  await NotificationController.saveAndSendNotification({
+    userId: consultation.citizenId.toString(),
+    title: '⚖️ Dispute Resolved',
+    body: `Your dispute has been resolved in favor of ${payload.decision}. ${payload.reason}`,
+    type: 'dispute_resolved',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
+  // Notify lawyer of dispute resolution
+  await NotificationController.saveAndSendNotification({
+    userId: consultation.lawyerId.toString(),
+    title: '⚖️ Dispute Resolved',
+    body: `The dispute on consultation ${consultationId} has been resolved in favor of ${payload.decision}.`,
+    type: 'dispute_resolved',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
   AuditLogModel.create({ adminId: admin.adminId, adminName: admin.adminName, action: AuditAction.DISPUTE_RESOLVED, targetType: 'consultation', targetId: consultation._id, meta: { decision: payload.decision, reason: payload.reason } }).catch(() => null);
 
   return getConsultationById(consultationId);
@@ -1148,6 +1317,18 @@ export async function approveRefund(consultationId: string, payload: ApproveRefu
 
   consultation.timeline.push({ time: new Date(), label: payload.approved ? 'Refund approved' : 'Refund rejected', note: payload.adminNote });
   await consultation.save();
+
+  // Notify citizen of refund decision
+  await NotificationController.saveAndSendNotification({
+    userId: consultation.citizenId.toString(),
+    title: payload.approved ? '💰 Refund Approved' : '❌ Refund Rejected',
+    body: payload.approved 
+      ? `Your refund request has been approved. Amount: ₦${consultation.feePaid || 0}` 
+      : `Your refund request has been rejected. ${payload.adminNote || ''}`,
+    type: 'refund_decision',
+    clickUrl: `/consultations/${consultationId}`,
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
 
   AuditLogModel.create({ adminId: admin.adminId, adminName: admin.adminName, action: payload.approved ? AuditAction.REFUND_APPROVED : AuditAction.REFUND_REJECTED, targetType: 'consultation', targetId: consultation._id, meta: { approved: payload.approved, note: payload.adminNote } }).catch(() => null);
 
@@ -1409,22 +1590,20 @@ const candidates = await LawyerProfileModel.find({
 })
   .sort({ ratingAvg: -1 })
   .limit(limit * 3)
-  .populate('userId', 'firstName lastName fullName'); 
+  .populate('userId', 'firstName lastName fullName avatarUrl'); 
 
 const recommendedCandidates = await LawyerProfileModel.find({ _id: { $in: recommendedLawyerIds }})
   .sort({ ratingAvg: -1 })
   .limit(limit * 3)
-  .populate('userId', 'firstName lastName fullName'); 
+  .populate('userId', 'firstName lastName fullName avatarUrl'); 
 
   const fitting = candidates.slice(0, limit);
   
   const finalCandidates = [...recommendedCandidates, ...fitting.filter(c => !recommendedCandidates.some(rc => rc._id.equals(c._id)))];
   
-  console.log({ recommendedCandidates, recommendedLawyerIds })
-  
   return finalCandidates.map(profile => {
     const ref = toRecommendedLawyerRef(profile);
-    console.log(ref)
+    // console.log(ref)
     return {
       ...ref,
       id: ref.lawyerProfileId.toString(),
@@ -1562,8 +1741,9 @@ export async function consultationPayment(consultationId: string): Promise<any> 
 
   const consultation = await getConsultationById(consultationId) || {}
 
+  const consultId = generateConsultId()
   const paymentGateway = new PaymentGateway();
-  const paymentReference = paymentGateway.generatePaymentReference(receiptId);
+  const paymentReference = paymentGateway.generatePaymentReference(consultId);
 
   if (!consultation) throw new AppError('Consultation not found', 404, 'NOT_FOUND');
 
@@ -1578,7 +1758,7 @@ export async function consultationPayment(consultationId: string): Promise<any> 
     metadata: {
       type: 'purchase',
       coreId: consultationId.toString(),
-      orderSlug: receiptId,
+      orderSlug: consultId,
       redirect: "consultations",
     }
   }
