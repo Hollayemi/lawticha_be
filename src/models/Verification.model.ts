@@ -39,7 +39,7 @@ const VerificationSchema = new Schema<IVerification>(
       type: String,
       default: '#1E3A5F',
     },
-    nbaNumber: {
+    scnNumber: {
       type: String,
       required: [true, 'SCN number is required'],
       trim: true,
@@ -108,7 +108,7 @@ const VerificationSchema = new Schema<IVerification>(
 );
 
 VerificationSchema.index({ status: 1, removedAt: 1 });
-VerificationSchema.index({ name: 'text', nbaNumber: 'text', email: 'text' });
+VerificationSchema.index({ name: 'text', scnNumber: 'text', email: 'text' });
 VerificationSchema.index({ createdAt: -1 });
 
 VerificationSchema.virtual('initials').get(function () {

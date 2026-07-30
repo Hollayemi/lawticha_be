@@ -104,7 +104,6 @@ export async function createProfileAfterRegister(user: IUserDocument): Promise<v
     await LawyerProfileModel.create({
       userId: user._id,
       fees: { message: 0, call: 0, video: 0 },
-      // verificationStatus defaults to 'pending' in the schema
     });
 
     await NotificationController.saveAndSendNotification({

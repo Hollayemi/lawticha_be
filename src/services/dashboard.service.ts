@@ -401,7 +401,7 @@ export async function getDashboardAnalytics(period: Period) {
       avatarInitials: `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase(),
       colorA: p.colorA,
       colorB: p.colorB,
-      nbaNumber: p.nbaNumber ?? '',
+      scnNumber: p.scnNumber ?? '',
       specialisms: p.specialisms,
       consultationCount: p.consultationCount,
       rating: p.ratingAvg,

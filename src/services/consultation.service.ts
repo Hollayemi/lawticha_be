@@ -134,7 +134,7 @@ function toRecommendedLawyerRef(profile: any): IRecommendedLawyer {
     picture: user.avatarUrl,
     initials: getInitials(name),
     color: profile.colorA || getRandomColor(),
-    nbaNumber: profile.nbaNumber || '',
+    scnNumber: profile.scnNumber || '',
     title: profile.title,
   };
 }
@@ -230,7 +230,7 @@ async function getLawyerInfo(lawyerProfileId: Types.ObjectId, lawyerId: Types.Ob
     initials: getInitials(name),
     color: profile.colorA || getRandomColor(),
     specialisms: profile.specialisms || [],
-    nbaNumber: profile.nbaNumber || '',
+    scnNumber: profile.scnNumber || '',
     myPayout: profile.fees,
   };
 }
@@ -281,7 +281,7 @@ export async function formatConsultation(consult: any) {
  * POST /marketplace/consultations
  */
 export interface BookConsultationInput {
-  lawyerNbaNumber: string;
+  lawyerScnNumber: string;
   mode: 'message' | 'call' | 'video';
   topic: string;
   description?: string;
@@ -291,10 +291,10 @@ export interface BookConsultationInput {
 }
 
 export async function bookConsultation(citizenId: string, citizenName: string, input: BookConsultationInput) {
-  const { lawyerNbaNumber, mode, topic, description, waiver, requestId, receiptId: requestReceipt } = input;
+  const { lawyerScnNumber, mode, topic, description, waiver, requestId, receiptId: requestReceipt } = input;
 
   // Find lawyer by SCN number
-  const profile = await LawyerProfileModel.findOne({ nbaNumber: lawyerNbaNumber })
+  const profile = await LawyerProfileModel.findOne({ scnNumber: lawyerScnNumber })
     .populate('userId', 'firstName lastName email avatarUrl')
     .populate('specialisms', 'name displayName');
   if (!profile) {
@@ -988,7 +988,7 @@ export async function citizenSelectRecommendedLawyer(matchRequestId: string, cit
   await request.save();
 
   const book = await bookConsultation(citizenId, citizenName, {
-    lawyerNbaNumber: profile.nbaNumber,
+    lawyerScnNumber: profile.scnNumber,
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
@@ -1672,7 +1672,7 @@ export async function assignLawyerToMatch(matchRequestId: string, lawyerId: stri
   AuditLogModel.create({ adminId: admin.adminId, adminName: admin.adminName, action: AuditAction.MATCH_ASSIGNED, targetType: 'match_request', targetId: request._id, meta: { lawyerId, lawyerName } }).catch(() => null);
 
   const book = await bookConsultation(citizen._id.toString(), citizenName, {
-    lawyerNbaNumber: profile.nbaNumber,
+    lawyerScnNumber: profile.scnNumber,
     mode: request.mode as any,
     topic: request.topic || request.specialism,
     description: [request.description, request.notes].filter(Boolean).join('\n\n'),
@@ -1797,7 +1797,7 @@ export async function getLawyerPerformance(params: { startDate?: string; endDate
         lawyerName: { $ifNull: ['$user.fullName', { $concat: ['$user.firstName', ' ', '$user.lastName'] }] },
         lawyerInitials: { $substrCP: [{ $concat: [{ $substrCP: ['$user.firstName', 0, 1] }, { $substrCP: ['$user.lastName', 0, 1] }] }, 0, 2] },
         lawyerColor: { $ifNull: ['$profile.colorA', '#3B82F6'] },
-        nbaNumber: '$profile.nbaNumber',
+        scnNumber: '$profile.scnNumber',
         totalSessions: 1,
         completedSessions: 1,
         disputedSessions: 1,

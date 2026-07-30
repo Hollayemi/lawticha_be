@@ -111,7 +111,7 @@ export interface ILawyer extends BaseModel {
   bio?: string;
   languages: string[];
   specialisms: string[];
-  nbaNumber: string;
+  scnNumber: string;
   yearsCall: number;
   status: LawyerStatus;
   available: boolean;
@@ -135,7 +135,7 @@ export interface IVerification extends BaseModel {
   phone?: string;
   state?: string;
   color: string;
-  nbaNumber: string;
+  scnNumber: string;
   yearsCall: number;
   calledAt: string;
   specialisms: string[];

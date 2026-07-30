@@ -6,7 +6,7 @@ import {
   getMarketplaceSpecialismsHandler,
   getFilterCountsHandler,
   getMarketplaceLawyersHandler,
-  getLawyerByNbaNumberHandler,
+  getLawyerByScnNumberHandler,
   bookConsultationHandler,
   requestLawyerMatchHandler,
   getLawyerAvailabilityHandler,
@@ -21,13 +21,13 @@ router.get('/states', getMarketplaceStatesHandler);
 router.get('/specialisms', getMarketplaceSpecialismsHandler);
 router.get('/filter-counts', getFilterCountsHandler);
 router.get('/lawyers', getMarketplaceLawyersHandler);
-router.get('/lawyers/:nbaNumber', getLawyerByNbaNumberHandler);
-router.get('/lawyers/:nbaNumber/availability', getLawyerAvailabilityHandler);
+router.get('/lawyers/:scnNumber', getLawyerByScnNumberHandler);
+router.get('/lawyers/:scnNumber/availability', getLawyerAvailabilityHandler);
 
 // Protected routes (require authentication)
 router.use(protect);
 router.post('/consultations', bookConsultationHandler);
 router.post('/match-requests', requestLawyerMatchHandler);
-router.post('/lawyers/:nbaNumber/reviews', submitReviewHandler);
+router.post('/lawyers/:scnNumber/reviews', submitReviewHandler);
 
 export default router;

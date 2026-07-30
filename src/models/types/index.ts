@@ -268,7 +268,7 @@ export interface IVerificationDocument {
 export interface ILawyerProfile extends BaseModel {
   userId: ObjectId;
   // SCN & professional identity
-  nbaNumber?: string;
+  scnNumber?: string;
   yearOfCall?: number;
   calledAt?: string;        // "2019"
   title?: string;           // "Employment & Labour Lawyer"
@@ -419,7 +419,7 @@ export interface IRecommendedLawyer {
   name: string;
   initials: string;
   color: string;
-  nbaNumber: string;
+  scnNumber: string;
   title?: string;
 }
 
@@ -824,7 +824,7 @@ export interface ILawyerPerformanceStats {
   lawyerName: string;
   lawyerInitials: string;
   lawyerColor: string;
-  nbaNumber: string;
+  scnNumber: string;
   totalSessions: number;
   completedSessions: number;
   disputedSessions: number;

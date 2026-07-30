@@ -17,7 +17,7 @@ import {
   getMarketplaceSpecialisms,
   getFilterCounts,
   getMarketplaceLawyers,
-  getLawyerByNbaNumber,
+  getLawyerByScnNumber,
   requestLawyerMatch,
   getLawyerAvailability,
   submitReview,
@@ -64,10 +64,11 @@ export const updateMyProfileHandler = asyncHandler(
 // Lawyer submits (or resubmits) their verification application
 export const submitVerificationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { nbaNumber, yearOfCall, calledAt } = req.body;
+    const { scnNumber, yearOfCall, calledAt } = req.body;
 
-    if (!nbaNumber?.trim()) return next(new AppError('SCN number is required.', 400, 'VALIDATION_ERROR'));
+    if (!scnNumber?.trim()) return next(new AppError('SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!yearOfCall) return next(new AppError('Year of call is required.', 400, 'VALIDATION_ERROR'));
+    if (!calledAt?.trim()) return next(new AppError('calledAt year is required (e.g. "2019").', 400, 'VALIDATION_ERROR'));
     if (!calledAt?.trim()) return next(new AppError('calledAt year is required (e.g. "2019").', 400, 'VALIDATION_ERROR'));
 
     const result = await submitVerification(req.user!._id.toString(), req.body);
@@ -287,13 +288,13 @@ export const getMarketplaceLawyersHandler = asyncHandler(
 );
 
 /**
- * GET /api/v1/marketplace/lawyers/:nbaNumber
+ * GET /api/v1/marketplace/lawyers/:scnNumber
  * Get lawyer by SCN number
  */
-export const getLawyerByNbaNumberHandler = asyncHandler(
+export const getLawyerByScnNumberHandler = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { nbaNumber } = req.params;
-    const lawyer = await getLawyerByNbaNumber(nbaNumber);
+    const { scnNumber } = req.params;
+    const lawyer = await getLawyerByScnNumber(scnNumber);
     return (res as AppResponse).data(lawyer, 'Lawyer fetched.');
   }
 );
@@ -304,16 +305,16 @@ export const getLawyerByNbaNumberHandler = asyncHandler(
  */
 export const bookConsultationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { lawyerNbaNumber, mode, topic, description,  } = req.body;
+    const { lawyerScnNumber, mode, topic, description,  } = req.body;
 
     if (!req.user) return next(new AppError('Invalid User.', 400, 'VALIDATION_ERROR'));
 
-    if (!lawyerNbaNumber) return next(new AppError('Lawyer SCN number is required.', 400, 'VALIDATION_ERROR'));
+    if (!lawyerScnNumber) return next(new AppError('Lawyer SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!mode) return next(new AppError('Consultation mode is required.', 400, 'VALIDATION_ERROR'));
     if (!topic?.trim()) return next(new AppError('Topic is required.', 400, 'VALIDATION_ERROR'));
 
     const result = await bookConsultation(req.user!._id.toString(), req.user.fullName, {
-      lawyerNbaNumber,
+      lawyerScnNumber,
       mode,
       topic,
       description,
@@ -396,32 +397,32 @@ export const requestLawyerMatchHandler = asyncHandler(
 );
 
 /**
- * GET /api/v1/marketplace/lawyers/:nbaNumber/availability
+ * GET /api/v1/marketplace/lawyers/:scnNumber/availability
  * Get lawyer availability slots
  */
 export const getLawyerAvailabilityHandler = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction) => {
-    const { nbaNumber } = req.params;
+    const { scnNumber } = req.params;
     const { date } = req.query as { date?: string };
-    const slots = await getLawyerAvailability(nbaNumber, date);
+    const slots = await getLawyerAvailability(scnNumber, date);
     return (res as AppResponse).data(slots, 'Availability slots fetched.');
   }
 );
 
 /**
- * POST /api/v1/marketplace/lawyers/:nbaNumber/reviews
+ * POST /api/v1/marketplace/lawyers/:scnNumber/reviews
  * Submit a review for a lawyer
  */
 export const submitReviewHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { nbaNumber } = req.params;
+    const { scnNumber } = req.params;
     const { consultationId, rating, comment, tags } = req.body;
 
     if (!consultationId) return next(new AppError('Consultation ID is required.', 400, 'VALIDATION_ERROR'));
     if (!rating || rating < 1 || rating > 5) return next(new AppError('Rating must be between 1 and 5.', 400, 'VALIDATION_ERROR'));
     if (!comment?.trim()) return next(new AppError('Comment is required.', 400, 'VALIDATION_ERROR'));
 
-    const result = await submitReview(req.user!._id.toString(), nbaNumber, {
+    const result = await submitReview(req.user!._id.toString(), scnNumber, {
       consultationId,
       rating,
       comment,

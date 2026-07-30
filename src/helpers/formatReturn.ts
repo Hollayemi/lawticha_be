@@ -5,7 +5,7 @@ export const lawyerObject = (profile: any) => {
   return ({
     id: profile._id,
     _id: profile._id,
-    nbaNumber: profile.nbaNumber,
+    scnNumber: profile.scnNumber,
     firstName: (profile.userId as any)?.firstName || '',
     lastName: (profile.userId as any)?.lastName || '',
     fullName: (profile.userId as any)?.firstName  + " " + (profile.userId as any)?.lastName || "",

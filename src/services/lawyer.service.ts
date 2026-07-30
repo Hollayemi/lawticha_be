@@ -20,7 +20,7 @@ interface AdminCtx {
 }
 
 export interface SubmitVerificationInput {
-  nbaNumber: string;
+  scnNumber: string;
   yearOfCall: number;
   calledAt: string;
   specialisms?: string[];
@@ -55,7 +55,7 @@ export interface UpdateLawyerProfileInput {
 
 export interface LawyerProfile {
   id: string;
-  nbaNumber: string;
+  scnNumber: string;
 
   firstName: string;
   lastName: string;
@@ -156,7 +156,7 @@ export async function submitVerification(
 
   // Submit verification (handles both create and update internally)
   await profile.submitVerification({
-    nbaNumber: input.nbaNumber,
+    scnNumber: input.scnNumber,
     yearOfCall: input.yearOfCall,
     calledAt: input.calledAt,
     specialisms: input.specialisms,
@@ -729,10 +729,10 @@ export async function getMarketplaceLawyers(params: MarketplaceLawyersParams = {
 
 /**
  * Get lawyer by SCN number (public)
- * GET /marketplace/lawyers/:nbaNumber
+ * GET /marketplace/lawyers/:scnNumber
  */
-export async function getLawyerByNbaNumber(nbaNumber: string) {
-  const profile = await LawyerProfileModel.findOne({ nbaNumber: nbaNumber.replace(/-/g, "/") })
+export async function getLawyerByScnNumber(scnNumber: string) {
+  const profile = await LawyerProfileModel.findOne({ scnNumber: scnNumber.replace(/-/g, "/") })
     .populate('userId', 'firstName lastName email avatarUrl')
     .populate('specialisms');
 
@@ -819,10 +819,10 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
 
 /**
  * Get lawyer availability slots
- * GET /marketplace/lawyers/:nbaNumber/availability
+ * GET /marketplace/lawyers/:scnNumber/availability
  */
-export async function getLawyerAvailability(nbaNumber: string, date?: string) {
-  const profile = await LawyerProfileModel.findOne({ nbaNumber: nbaNumber.replace(/-/g, "/") });
+export async function getLawyerAvailability(scnNumber: string, date?: string) {
+  const profile = await LawyerProfileModel.findOne({ scnNumber: scnNumber.replace(/-/g, "/") });
   if (!profile) {
     throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
   }
@@ -865,7 +865,7 @@ export async function getLawyerAvailability(nbaNumber: string, date?: string) {
 
 /**
  * Submit a review for a lawyer after consultation
- * POST /marketplace/lawyers/:nbaNumber/reviews
+ * POST /marketplace/lawyers/:scnNumber/reviews
  */
 export interface SubmitReviewInput {
   consultationId: string;
@@ -874,7 +874,7 @@ export interface SubmitReviewInput {
   tags?: string[];
 }
 
-export async function submitReview(citizenId: string, nbaNumber: string, input: SubmitReviewInput) {
+export async function submitReview(citizenId: string, scnNumber: string, input: SubmitReviewInput) {
   const { consultationId, rating, comment, tags } = input;
 
   // Find the consultation

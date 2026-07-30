@@ -12,7 +12,7 @@ export interface ILawyerProfileDocument extends Omit<ILawyerProfile, '_id'>, Doc
    */
   submitVerification(
     data: {
-      nbaNumber: string;
+      scnNumber: string;
       yearOfCall: number;
       calledAt: string;
       specialisms?: string[];
@@ -118,7 +118,7 @@ const LawyerProfileSchema = new Schema<ILawyerProfileDocument>(
     },
 
     // Professional identity 
-    nbaNumber:  { type: String, sparse: true, trim: true },
+    scnNumber:  { type: String, sparse: true, trim: true },
     yearOfCall: { type: Number, min: 0 },
     calledAt:   { type: String },           // "2019"
     title:      { type: String, trim: true },
@@ -205,14 +205,14 @@ LawyerProfileSchema.virtual('isVerified').get(function (
 LawyerProfileSchema.methods.submitVerification = async function (
   this: ILawyerProfileDocument,
   data: {
-    nbaNumber: string;
+    scnNumber: string;
     yearOfCall: number;
     calledAt: string;
     specialisms?: string[];
     documents?: IVerificationDocument[];
   }
 ): Promise<ILawyerProfileDocument> {
-  this.nbaNumber   = data.nbaNumber;
+  this.scnNumber   = data.scnNumber;
   this.yearOfCall  = data.yearOfCall;
   this.calledAt    = data.calledAt;
   if (data.specialisms) this.specialisms = data.specialisms;
