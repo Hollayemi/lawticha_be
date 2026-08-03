@@ -189,6 +189,7 @@ function mapMatchRequestToDTO(req: any) {
       }
       : undefined,
     recommendedLawyers: req.recommendedLawyers,
+    rejectedLawyers: req.rejectedLawyers || [],
     status: req.status,
     createdAt: req.createdAt?.toISOString(),
     expiresAt: req.expiresAt?.toISOString(),
@@ -748,6 +749,11 @@ export async function acceptConsultation(consultationId: string, lawyerId: strin
 /**
  * POST /consultations/lawyer/:id/reject
  * Lawyer rejects/declines a consultation request.
+ *
+ * If this consultation originated from a match request (a "case" the citizen already
+ * paid for), rejecting it does NOT close out the case — it reopens the match request
+ * so the citizen can pick a different lawyer without paying again. The rejecting
+ * lawyer is excluded from future suggestions/selection for that same case.
  */
 export async function rejectConsultation(consultationId: string, lawyerId: string, reason: string) {
   const consult = await ConsultationModel.findOne({
@@ -765,17 +771,67 @@ export async function rejectConsultation(consultationId: string, lawyerId: strin
   consult.timeline.push({ time: new Date(), label: 'Consultation rejected by lawyer', note: reason });
   await consult.save();
 
+  const reopenedCase = await reopenMatchRequestAfterRejection(consult, reason);
+
   // Notify citizen that their request was declined
   await NotificationController.saveAndSendNotification({
     userId: consult.citizenId.toString(),
     title: '❌ Consultation Declined',
-    body: `Your consultation request has been declined. Reason: ${reason || 'No reason provided'}`,
+    body: reopenedCase
+      ? `Your lawyer declined this consultation. Reason: ${reason || 'No reason provided'}. You can pick another lawyer for this case at no extra cost.`
+      : `Your consultation request has been declined. Reason: ${reason || 'No reason provided'}`,
     type: 'consultation_declined',
-    clickUrl: `/consultations/${consultationId}`,
+    clickUrl: reopenedCase ? `/match-requests/${reopenedCase._id}` : `/consultations/${consultationId}`,
     priority: 'medium'
   }, 'user', { push_notification: true });
 
   return formatConsultation(consult);
+}
+
+/**
+ * Helper for rejectConsultation: if the rejected consultation is tied to a paid-for
+ * match request (case), puts that request back into a selectable state instead of
+ * leaving it stuck at "matched" — this is what lets the citizen choose a new lawyer
+ * without triggering a new payment (bookConsultation reuses the case's existing
+ * PurchaseLog when the same requestId is passed back in).
+ */
+async function reopenMatchRequestAfterRejection(consult: any, reason: string) {
+  if (!consult.requestId) return null;
+
+  const request = await LawyerRequestModel.findById(consult.requestId);
+  if (!request) return null;
+
+  const rejectedProfileId = consult.lawyerProfileId.toString();
+
+  // Track who has already rejected this case so they're never re-suggested/re-selectable.
+  const rejectedLawyers = new Set((request.rejectedLawyers ?? []).map(String));
+  rejectedLawyers.add(rejectedProfileId);
+  request.rejectedLawyers = Array.from(rejectedLawyers);
+
+  // Drop the rejecting lawyer from the shortlist the citizen sees.
+  request.recommendedLawyers = (request.recommendedLawyers ?? []).filter(
+    (id: string) => id.toString() !== rejectedProfileId
+  );
+
+  // Clear the stale match so the request no longer looks "resolved".
+  request.matchedLawyerId = undefined;
+  request.matchedLawyerProfileId = undefined;
+  request.matchedLawyerName = undefined;
+  request.matchedAt = undefined;
+  request.consultationId = undefined;
+
+  // If there's still someone left on the shortlist, let the citizen pick immediately;
+  // otherwise fall back to "unassigned" so admin/auto-suggest can offer new candidates.
+  request.status = request.recommendedLawyers.length > 0 ? 'recommended' : 'unassigned';
+
+  request.timeline.push({
+    time: new Date(),
+    label: 'Lawyer declined consultation — case reopened for reselection',
+    note: reason,
+  });
+
+  await request.save();
+  return request;
 }
 
 /**
@@ -796,7 +852,7 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
     id: new Types.ObjectId().toString(),
     sender: 'lawyer',
     senderName,
-    senderId: new Types.ObjectId(lawyerId),
+    senderId: new Types.ObjectId(lawyerId) as any,
     text,
     time: new Date(),
     read: false,
@@ -971,6 +1027,10 @@ export async function citizenSelectRecommendedLawyer(matchRequestId: string, cit
   if (request.status !== 'recommended') throw new AppError('No recommendations are available to choose from yet', 400, 'INVALID_STATUS');
 
   console.log(request, request.recommendedLawyers, lawyerProfileId)
+
+  if ((request.rejectedLawyers ?? []).map(String).includes(lawyerProfileId)) {
+    throw new AppError('This lawyer already declined your case — please choose a different lawyer', 400, 'INVALID_SELECTION');
+  }
 
   const suggestions = await getAutoSuggestedLawyers(matchRequestId);
   const chosen = suggestions.find((l: any) => l?.id === lawyerProfileId);
@@ -1580,26 +1640,32 @@ export async function getAutoSuggestedLawyers(matchRequestId: string, limit = 5)
   const request = await LawyerRequestModel.findById(matchRequestId);
   if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
 
-  const recommendedLawyerIds = (request.recommendedLawyers ?? [])
-  .map((id:string) => new Types.ObjectId(id));
+  const recommendedLawyerIds = (request.recommendedLawyers ?? []).map((id: unknown) =>
+    new Types.ObjectId(String(id))
+  );
+  const rejectedLawyerIds = new Set<string>((request.rejectedLawyers ?? []).map((id: unknown) => String(id)));
 
-const candidates = await LawyerProfileModel.find({
-  verificationStatus: VerificationStatus.VERIFIED,
-  isAvailable: true,
-  specialisms: { $in: [request.specialism] },
-})
+  const candidates = await LawyerProfileModel.find({
+    verificationStatus: VerificationStatus.VERIFIED,
+    isAvailable: true,
+    specialisms: { $in: [request.specialism] },
+    _id: { $nin: Array.from(rejectedLawyerIds, id => new Types.ObjectId(id)) },
+  })
   .sort({ ratingAvg: -1 })
   .limit(limit * 3)
   .populate('userId', 'firstName lastName fullName avatarUrl'); 
 
-const recommendedCandidates = await LawyerProfileModel.find({ _id: { $in: recommendedLawyerIds }})
+const recommendedCandidates = await LawyerProfileModel.find({
+  _id: { $in: recommendedLawyerIds },
+})
   .sort({ ratingAvg: -1 })
   .limit(limit * 3)
   .populate('userId', 'firstName lastName fullName avatarUrl'); 
 
   const fitting = candidates.slice(0, limit);
   
-  const finalCandidates = [...recommendedCandidates, ...fitting.filter(c => !recommendedCandidates.some(rc => rc._id.equals(c._id)))];
+  const finalCandidates = [...recommendedCandidates, ...fitting.filter(c => !recommendedCandidates.some(rc => rc._id.equals(c._id)))]
+    .filter(c => !rejectedLawyerIds.has(c._id.toString()));
   
   return finalCandidates.map(profile => {
     const ref = toRecommendedLawyerRef(profile);
@@ -1655,6 +1721,9 @@ export async function assignLawyerToMatch(matchRequestId: string, lawyerId: stri
 
   const profile = await LawyerProfileModel.findById(lawyerId).populate('userId', 'firstName lastName fullName');
   if (!profile) throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
+  if ((request.rejectedLawyers ?? []).map(String).includes(profile._id.toString())) {
+    throw new AppError('This lawyer already declined this case — assign a different lawyer', 400, 'INVALID_SELECTION');
+  }
 
   const user = profile.userId as any;
   const lawyerName = user?.fullName || `${user?.firstName} ${user?.lastName}`;

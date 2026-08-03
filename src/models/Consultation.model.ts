@@ -199,6 +199,8 @@ const LawyerRequestSchema = new Schema<ILawyerRequest>(
 
     //  Recommendation & final match 
     recommendedLawyers: { type: [String], default: [] },
+    // LawyerProfile ids that already declined this case — excluded from future suggestions/selection.
+    rejectedLawyers: { type: [String], default: [] },
 
     matchedLawyerId: {
       type: Schema.Types.ObjectId,

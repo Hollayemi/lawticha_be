@@ -471,6 +471,8 @@ export interface ILawyerRequest extends BaseModel {
 
   //  Recommendation & final match 
   recommendedLawyers: string[];
+  /** LawyerProfile ids that have already declined this case — excluded from future suggestions/selection. */
+  rejectedLawyers?: string[];
   matchedLawyerId?: ObjectId;
   matchedLawyerProfileId?: ObjectId;
   matchedLawyerName?: string;
