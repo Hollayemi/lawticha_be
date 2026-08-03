@@ -1,10 +1,20 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ChatService } from '../services/ChatService';
-import { ConversationStatus } from '../types/chat.types';
+import { ConversationStatus, IConversation } from '../types/chat.types';
 
+export interface ChatRouterOptions {
+  /**
+   * App-specific hook to enrich a list of conversations before they're sent
+   * to the client — e.g. attaching consultation/case info so the frontend
+   * can render "Open <topic> case" instead of a generic participant name.
+   * Left undefined, conversations are returned as-is (fully decoupled).
+   */
+  enrichConversations?: (conversations: IConversation[]) => Promise<any[]>;
+}
 
-export function createChatRouter(chat: ChatService): Router {
+export function createChatRouter(chat: ChatService, options: ChatRouterOptions = {}): Router {
   const router = Router();
+  const { enrichConversations } = options;
 
   function getUserId(req: Request): string | undefined {
     return (req as any).user?._id?.toString() ?? (req as any).admin?.id;
@@ -66,7 +76,7 @@ export function createChatRouter(chat: ChatService): Router {
 
     const presenceMap = await chat.getPresenceBulk(participantIds);
 
-    const enriched = result.data.map(conv => ({
+    let enriched: any[] = result.data.map(conv => ({
       ...conv,
       participants: conv.participants.map(p => ({
         ...p,
@@ -74,6 +84,10 @@ export function createChatRouter(chat: ChatService): Router {
         lastSeenAt: presenceMap[p.userId.toString()]?.lastSeenAt,
       })),
     }));
+
+    if (enrichConversations) {
+      enriched = await enrichConversations(enriched);
+    }
 
     respond(res, { conversations: enriched, total: result.total });
   });
@@ -138,7 +152,7 @@ export function createChatRouter(chat: ChatService): Router {
     const participantIds = conversation.participants.map(p => p.userId.toString());
     const presenceMap = await chat.getPresenceBulk(participantIds);
 
-    const enriched = {
+    let enriched: any = {
       ...conversation,
       participants: conversation.participants.map(p => ({
         ...p,
@@ -147,8 +161,56 @@ export function createChatRouter(chat: ChatService): Router {
       })),
     };
 
+    if (enrichConversations) {
+      [enriched] = await enrichConversations([enriched]);
+    }
+
     respond(res, { conversation: enriched });
   });
+
+  // ─── GET /conversations/context/:contextType/:contextId ──────────────────
+  // Look up a conversation by its context (e.g. a consultation's chat by
+  // consultationId). Useful when the frontend has a consultation/case ID
+  // (from the consultations list) and wants to open its chat directly.
+
+  router.get(
+    '/conversations/context/:contextType/:contextId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      const userId = getUserId(req);
+      if (!userId) return fail(next, 'Unauthorized', 401);
+
+      const { contextType, contextId } = req.params;
+
+      const conversation = await chat.getConversationByContext(contextType, contextId);
+      if (!conversation) return fail(next, 'Conversation not found.', 404);
+
+      const isadmin = isAdmin(req);
+      if (!isadmin) {
+        const isParticipant = conversation.participants.some(
+          p => p.userId.toString() === userId
+        );
+        if (!isParticipant) return fail(next, 'Forbidden', 403);
+      }
+
+      const participantIds = conversation.participants.map(p => p.userId.toString());
+      const presenceMap = await chat.getPresenceBulk(participantIds);
+
+      let enriched: any = {
+        ...conversation,
+        participants: conversation.participants.map(p => ({
+          ...p,
+          isOnline: presenceMap[p.userId.toString()]?.isOnline ?? false,
+          lastSeenAt: presenceMap[p.userId.toString()]?.lastSeenAt,
+        })),
+      };
+
+      if (enrichConversations) {
+        [enriched] = await enrichConversations([enriched]);
+      }
+
+      respond(res, { conversation: enriched });
+    }
+  );
 
   // ─── GET /conversations/:id/messages ─────────────────────────────────────
 

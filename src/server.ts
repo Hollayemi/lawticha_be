@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { ChatService }    from './services/chat-service/services/ChatService';
 import { createChatRouter } from './services/chat-service/router/chat.router';
+import { attachCaseInfo } from './services/chat-case.enrichment';
 
 import connectDB from './config/database';
 import {
@@ -97,10 +98,9 @@ import adminRoutes from './routes/admin/admin.routes';
 import adminDashboardRoutes from './routes/admin/dashboard.admin.routes';
 import adminConsultation from './routes/admin/consultation.admin.routes';
 import adminSubscriptionRoutes from './routes/admin/subscription.admin.routes';
-import { seedSpecialisms } from './scripts/seed-specialism';
 import { protectBoth } from './middleware/auth.middleware';
+import { seedSpecialisms } from './scripts/seed-specialism';
 import { seedSubscriptionPlans } from './scripts/seed-subscription-plans';
-
 
 
 // auth
@@ -138,16 +138,18 @@ app.use('/api/v1/admin/subscriptions', adminSubscriptionRoutes);
 // ── Create HTTP server (required for Socket.io) ──────────────────────────────
 const httpServer = http.createServer(app);
 
-// export const chatService = new ChatService(httpServer, {
-//   redisUrl:    process.env.REDIS_URL ?? 'rediss://default:gQAAAAAAAk6vAAIgcDIyZmM5ZTVhMTE1MWE0ZGJlODgwMDQ1OTljYTE1ZjkwNw@harmless-swine-151215.upstash.io:6379',
-//   jwtSecret:   process.env.JWT_SECRET,
-//   corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
-//   presenceTtlSeconds:  30,
-//   heartbeatIntervalMs: 20_000,
-//   messagesPageSize:    50,
-// });
+export const chatService = new ChatService(httpServer, {
+  redisUrl:    process.env.REDIS_URL ?? 'redis://localhost:6379',
+  jwtSecret:   process.env.JWT_SECRET,
+  corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
+  presenceTtlSeconds:  30,
+  heartbeatIntervalMs: 20_000,
+  messagesPageSize:    50,
+});
 
-// app.use('/api/v1/chat', protectBoth, createChatRouter(chatService));
+app.use('/api/v1/chat', protectBoth, createChatRouter(chatService, {
+  enrichConversations: attachCaseInfo,
+}));
 
 
 //  Error handling 
@@ -158,7 +160,7 @@ app.use(errorHandler);
 // seedSubscriptionPlans()
 //  Start 
 const server = httpServer.listen(PORT, async () => {
-  // await chatService.init();
+  await chatService.init();
   console.log(`
     LawTicha Server Running
     Environment: ${process.env.NODE_ENV}

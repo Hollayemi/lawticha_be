@@ -170,6 +170,18 @@ export class ChatService {
   }
 
   /**
+   * Get a single conversation by its context (e.g. contextType='consultation',
+   * contextId=<consultationId>). Lets the frontend open a case's chat when it
+   * only has the consultation ID on hand (e.g. from the consultations list).
+   */
+  async getConversationByContext(
+    contextType: string,
+    contextId: string,
+  ): Promise<IConversation | null> {
+    return this.repo.findByContext(contextType, contextId);
+  }
+
+  /**
    * Fetch paginated message history (for REST endpoints or initial page load).
    */
   async getMessages(params: {
