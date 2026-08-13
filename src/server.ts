@@ -27,6 +27,8 @@ const PORT = process.env.PORT || 5000;
 //  Security 
 app.use(helmet());
 
+app.set("trust proxy", 1);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
   max: 200,
@@ -159,7 +161,7 @@ app.use(errorHandler);
 // seedSpecialisms()
 // seedSubscriptionPlans()
 //  Start 
-const server = httpServer.listen(PORT, "0.0.0.0",  async () => {
+const server = httpServer.listen(PORT,  async () => {
   await chatService.init();
   console.log(`
     LawTicha Server Running
