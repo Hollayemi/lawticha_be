@@ -27,17 +27,17 @@ const PORT = process.env.PORT || 5000;
 //  Security 
 app.use(helmet());
 
-app.set("trust proxy", 1);
+// app.set("trust proxy", 1);
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 200,
-  message: { error: 'Too many requests from this IP, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 min
+//   max: 200,
+//   message: { error: 'Too many requests from this IP, please try again later.' },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
-app.use('/api/', limiter);
+// app.use('/api/', limiter);
 
 app.use(
   cors({
