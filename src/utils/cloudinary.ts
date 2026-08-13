@@ -117,7 +117,16 @@ export const upload = multer({
         fileSize: 5 * 1024 * 1024, // 5MB
     },
     fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', "application/pdf"];
+        const allowedMimeTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/webp',
+            'image/gif',
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
         if (allowedMimeTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {

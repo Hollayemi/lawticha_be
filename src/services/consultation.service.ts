@@ -99,14 +99,14 @@ export interface UploadDocumentInput {
  * Uploads a single document (PDF, image, Word doc, etc.) to Cloudinary as a raw asset
  * and returns the metadata shape stored on a match request.
  */
-async function uploadMatchDocument(
-  citizenId: string,
+export async function uploadDocument(
   input: UploadDocumentInput,
-  source: 'citizen' | 'firm'
+  source: 'citizen' | 'firm' | 'lawyer',
+  location?: string,
 ): Promise<IConsultationDocumentMeta> {
   const { url, publicId } = await CloudinaryService.uploadFile(
     input.file,
-    `match-requests/${citizenId}`,
+    location || 'files',
     'raw'
   );
 
@@ -1004,7 +1004,7 @@ export async function addCitizenMatchDocument(matchRequestId: string, citizenId:
   if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
   if (request.citizenId.toString() !== citizenId) throw new AppError('You do not have access to this request', 403, 'FORBIDDEN');
 
-  const doc = await uploadMatchDocument(citizenId, input, 'citizen');
+  const doc = await uploadDocument(input, 'citizen', `match-requests/${citizenId}`);
   request.documents.push(doc);
   request.timeline.push({ time: new Date(), label: 'Document attached by citizen', note: doc.name });
   await request.save();
@@ -1598,7 +1598,7 @@ export async function adminAddMatchDocument(
   const request = await LawyerRequestModel.findById(matchRequestId);
   if (!request) throw new AppError('Match request not found', 404, 'NOT_FOUND');
 
-  const doc = await uploadMatchDocument(request.citizenId.toString(), input, 'firm');
+  const doc = await uploadDocument(input, 'firm', `match-requests/${request.citizenId.toString()}`,);
 
   if (input.isCaseBrief) {
     if (request.caseBrief?.publicId) {

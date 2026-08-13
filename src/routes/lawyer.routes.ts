@@ -11,6 +11,7 @@ import {
   setAvailabilityHandler,
 
 } from '../controllers/lawyer.controller';
+import { upload } from '../utils/cloudinary';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/me/profile', getMyProfileHandler);
 router.patch('/me/profile', updateMyProfileHandler);
 
 // POST /api/v1/lawyers/me/verification
-router.post('/me/verification', submitVerificationHandler);
+router.post('/me/verification', upload.single("file"), submitVerificationHandler);
 
 // PATCH /api/v1/lawyers/me/availability
 router.patch('/me/availability', setAvailabilityHandler);

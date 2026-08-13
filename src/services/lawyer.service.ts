@@ -35,7 +35,85 @@ export interface SubmitVerificationInput {
     call: number;
     video: number;
   };
+  /** Pre-uploaded documents (already has a fileUrl) — legacy/alternate input path. */
   documents?: IVerificationDocument[];
+  /** Raw multipart files straight off `req.files` — preferred path, uploaded to Cloudinary here. */
+  files?: Express.Multer.File[];
+}
+
+//  Verification documents 
+
+/**
+ * The set of document types the verification flow expects. The label drives which
+ * "slot" an uploaded file fills, and lets admins/clients tell which document a
+ * lawyer is still missing.
+ */
+export const VERIFICATION_DOCUMENT_LABELS = [
+  'callToBar',
+  'lawSchool',
+  'practicingLicense',
+  'governmentId',
+] as const;
+
+export type VerificationDocumentLabel = typeof VERIFICATION_DOCUMENT_LABELS[number];
+
+/**
+ * Derives the document label from the uploaded file's original name, e.g.
+ * "callToBar_LOMA Research.pdf" -> "callToBar".
+ */
+function extractDocumentLabel(originalname: string): string {
+  return (originalname.split('_')[0] || '').trim();
+}
+
+/**
+ * Uploads each raw multipart file to Cloudinary and builds the IVerificationDocument
+ * metadata (including the label) that verifyDocumentHandler/admin review relies on.
+ */
+export async function buildVerificationDocumentsFromFiles(
+  userId: string,
+  files: Express.Multer.File[]
+): Promise<IVerificationDocument[]> {
+  return Promise.all(
+    files.map(async (file) => {
+      const label = extractDocumentLabel(file.originalname);
+
+      if (!VERIFICATION_DOCUMENT_LABELS.includes(label as VerificationDocumentLabel)) {
+        throw new AppError(
+          `Unrecognized document label "${label}" from file "${file.originalname}". ` +
+          `Filename must be prefixed with one of: ${VERIFICATION_DOCUMENT_LABELS.join(', ')} (e.g. "callToBar_myFile.pdf").`,
+          400,
+          'VALIDATION_ERROR'
+        );
+      }
+
+      const { url } = await CloudinaryService.uploadFile(file, `lawyers/${userId}/verification`, 'raw');
+
+      return {
+        label,
+        filename: file.originalname,
+        fileUrl: url,
+        uploadedAt: new Date(),
+        sizeBytes: file.size,
+        verified: null,
+      } as IVerificationDocument;
+    })
+  );
+}
+
+/**
+ * Merges newly (re)uploaded documents into whatever the lawyer already has on file,
+ * keyed by label. A resubmission only replaces the labels it includes — e.g. if the
+ * lawyer only re-uploads a fresh "governmentId", their previously-accepted
+ * "callToBar" document is left untouched instead of being wiped out.
+ */
+function mergeVerificationDocuments(
+  existing: IVerificationDocument[] = [],
+  incoming: IVerificationDocument[] = []
+): IVerificationDocument[] {
+  const byLabel = new Map<string, IVerificationDocument>();
+  for (const doc of existing) byLabel.set(doc.label, doc);
+  for (const doc of incoming) byLabel.set(doc.label, doc); // re-upload resets that slot (verified -> null)
+  return Array.from(byLabel.values());
 }
 
 export interface UpdateLawyerProfileInput {
@@ -154,13 +232,24 @@ export async function submitVerification(
     };
   }
 
+  // Upload any newly-submitted files (preferred path) or accept pre-uploaded document
+  // metadata (legacy path), then merge them into whatever's already on file by label —
+  // so a partial resubmission doesn't wipe out documents that were already accepted.
+  const newDocuments = input.files?.length
+    ? await buildVerificationDocumentsFromFiles(userId, input.files)
+    : (input.documents ?? []);
+
+  const mergedDocuments = newDocuments.length
+    ? mergeVerificationDocuments(profile.verificationDocuments, newDocuments)
+    : undefined; // nothing new uploaded — leave existing documents as they are
+
   // Submit verification (handles both create and update internally)
   await profile.submitVerification({
     scnNumber: input.scnNumber,
     yearOfCall: input.yearOfCall,
     calledAt: input.calledAt,
     specialisms: input.specialisms,
-    documents: input.documents,
+    documents: mergedDocuments,
   });
 
   await profile.save();

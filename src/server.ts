@@ -138,18 +138,18 @@ app.use('/api/v1/admin/subscriptions', adminSubscriptionRoutes);
 // ── Create HTTP server (required for Socket.io) ──────────────────────────────
 const httpServer = http.createServer(app);
 
-export const chatService = new ChatService(httpServer, {
-  redisUrl:    process.env.REDIS_URL ?? 'redis://localhost:6379',
-  jwtSecret:   process.env.JWT_SECRET,
-  corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
-  presenceTtlSeconds:  30,
-  heartbeatIntervalMs: 20_000,
-  messagesPageSize:    50,
-});
+// export const chatService = new ChatService(httpServer, {
+//   redisUrl:    process.env.REDIS_URL ?? 'redis://localhost:6379',
+//   jwtSecret:   process.env.JWT_SECRET,
+//   corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
+//   presenceTtlSeconds:  30,
+//   heartbeatIntervalMs: 20_000,
+//   messagesPageSize:    50,
+// });
 
-app.use('/api/v1/chat', protectBoth, createChatRouter(chatService, {
-  enrichConversations: attachCaseInfo,
-}));
+// app.use('/api/v1/chat', protectBoth, createChatRouter(chatService, {
+//   enrichConversations: attachCaseInfo,
+// }));
 
 
 //  Error handling 
@@ -159,8 +159,8 @@ app.use(errorHandler);
 // seedSpecialisms()
 // seedSubscriptionPlans()
 //  Start 
-const server = httpServer.listen(PORT, async () => {
-  await chatService.init();
+const server = httpServer.listen(PORT, "0.0.0.0",  async () => {
+  // await chatService.init();
   console.log(`
     LawTicha Server Running
     Environment: ${process.env.NODE_ENV}

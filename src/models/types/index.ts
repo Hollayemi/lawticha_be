@@ -400,7 +400,7 @@ export interface IConsultationDocumentMeta {
   publicId?: string;
   sizeBytes: number;
   label?: string;
-  source: 'citizen' | 'firm';
+  source: 'citizen' | 'firm' | 'lawyer';
   uploadedAt: Date;
 }
 

@@ -61,17 +61,39 @@ export const updateMyProfileHandler = asyncHandler(
 );
 
 // POST /api/v1/lawyers/me/verification
-// Lawyer submits (or resubmits) their verification application
+// Lawyer submits (or resubmits) their verification application.
+// Documents are uploaded as multipart files under the "documents" field; each
+// file's name must be prefixed with its type + "_", e.g. "callToBar_LOMA Research.pdf",
+// so we can tell which slot (callToBar/lawSchool/practicingLicense/governmentId) it fills.
 export const submitVerificationHandler = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { scnNumber, yearOfCall, calledAt } = req.body;
+
+    let payload;
+    
+    try {
+      // Check if payload is a string (JSON) or already an object
+      if (typeof req.body.payload === 'string') {
+        payload = JSON.parse(req.body.payload);
+      } else if (req.body.payload && typeof req.body.payload === 'object') {
+        payload = req.body.payload;
+      } else {
+        // Try to parse from req.body directly
+        payload = req.body;
+      }
+    } catch (e) {
+      console.error('❌ Failed to parse payload:', e);
+      return next(new AppError('Invalid payload format', 400, 'VALIDATION_ERROR'));
+    }
+    
+    const { scnNumber, yearOfCall, calledAt } = payload as any;
 
     if (!scnNumber?.trim()) return next(new AppError('SCN number is required.', 400, 'VALIDATION_ERROR'));
     if (!yearOfCall) return next(new AppError('Year of call is required.', 400, 'VALIDATION_ERROR'));
     if (!calledAt?.trim()) return next(new AppError('calledAt year is required (e.g. "2019").', 400, 'VALIDATION_ERROR'));
-    if (!calledAt?.trim()) return next(new AppError('calledAt year is required (e.g. "2019").', 400, 'VALIDATION_ERROR'));
 
-    const result = await submitVerification(req.user!._id.toString(), req.body);
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+
+    const result = await submitVerification(req.user!._id.toString(), { ...req.body, files });
     return (res as AppResponse).data(result, result.message);
   }
 );
