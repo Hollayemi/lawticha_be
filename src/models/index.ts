@@ -26,7 +26,7 @@ export {
 // Consultations 
 export { ConsultationModel, LawyerRequestModel }  from './Consultation.model';
 export { ConversationModel, MessageModel }        from './Message.model';
-export { LawyerReviewModel, NotificationModel }   from './Notification.model';
+// export { LawyerReviewModel, NotificationModel }   from './Notification.model';
 
 // Activity 
 export { StudySessionModel }  from './StudySession.model';

@@ -1,0 +1,20 @@
+import { Request, Response, NextFunction } from 'express';
+export declare const listBooksHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getBookByIdHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getLibraryStatsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const downloadBookHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const createOrderHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getUserOrdersHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getUserOrderByIdHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminListBooksHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetLibraryStatsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetBookByIdHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminCreateBookHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminUpdateBookHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminDeleteBookHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminToggleBookFeaturedHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminToggleBookStatusHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminListOrdersHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetOrderByIdHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminUpdateOrderStatusHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+//# sourceMappingURL=library.controller.d.ts.map

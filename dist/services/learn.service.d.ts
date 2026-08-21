@@ -1,0 +1,227 @@
+import { ModuleCategory } from '../models/Module.model';
+export type LearnTabKey = 'all' | 'active' | 'complete' | 'saved';
+export type LearnModuleStatus = 'active' | 'inactive';
+export type LearnTopicStatus = 'published' | 'draft';
+export interface ListLearnModulesParams {
+    tab?: LearnTabKey;
+    search?: string;
+    category?: ModuleCategory | 'all';
+    page?: number;
+    pageSize?: number;
+    citizenId?: string;
+}
+export interface LearnInstructor {
+    _id: string;
+    name: string;
+    email: string;
+    initials: string;
+    color: string;
+}
+export interface LearnModule {
+    _id: string;
+    slug: string;
+    title: string;
+    description: string;
+    category: ModuleCategory;
+    categoryLabel: string;
+    categoryColor: string;
+    categoryBg: string;
+    status: LearnModuleStatus;
+    thumbnailUrl: string | null;
+    gradient: string;
+    tag: string;
+    tagColor: string;
+    price: 'Free' | string;
+    instructor: LearnInstructor;
+    rating: number;
+    reviewCount: number;
+    weeksDuration: number;
+    lessonCount: number;
+    trending: boolean;
+    createdAt: string;
+    updatedAt: string;
+    enrolledAt?: string | null;
+    progressPercent?: number;
+    userTab?: LearnTabKey;
+    isSaved?: boolean;
+}
+export declare function listLearnModules(params: ListLearnModulesParams): Promise<{
+    data: LearnModule[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+}>;
+export declare function getFullMaterialByModuleSlug(slug: string): Promise<{
+    module: {
+        _id: any;
+        title: any;
+        slug: any;
+        category: any;
+        status: any;
+        description: any;
+        instructor: any;
+        thumbnail: any;
+        topicCount: any;
+        enrolledCount: any;
+        completionRate: any;
+        avgRating: any;
+        createdAt: any;
+        updatedAt: any;
+    };
+    topics: {
+        _id: any;
+        title: any;
+        slug: any;
+        classification: any;
+        overview: any;
+        status: any;
+        order: any;
+        videoType: any;
+        videoUrl: any;
+        thumbnailUrl: any;
+        duration: any;
+        durationSeconds: any;
+        watchCount: any;
+        completionRate: any;
+        likes: any;
+        comments: any;
+        tags: any;
+        subtopicCount: any;
+        subtopics: {
+            _id: unknown;
+            title: any;
+            slug: any;
+            notes: any;
+            duration: any;
+            durationSeconds: any;
+            order: any;
+            viewCount: any;
+            completedBy: any;
+            createdAt: any;
+            updatedAt: any;
+        }[];
+    }[];
+}>;
+export declare function generateAndSaveSummary(slug: string, max_words?: number): Promise<any>;
+export declare function getLearnModuleBySlug(slug: string, citizenId?: string): Promise<{
+    _id: any;
+    slug: string;
+    title: any;
+    materialSummary: any;
+    description: any;
+    fullDescription: any;
+    category: any;
+    categoryLabel: string;
+    categoryColor: string;
+    categoryBg: string;
+    status: LearnModuleStatus;
+    thumbnailUrl: any;
+    gradient: string;
+    tag: string;
+    tagColor: string;
+    price: string;
+    instructor: LearnInstructor;
+    rating: any;
+    reviewCount: any;
+    weeksDuration: number;
+    lessonCount: any;
+    trending: any;
+    createdAt: any;
+    updatedAt: any;
+    enrolledAt: any;
+    progressPercent: any;
+    userTab: string | undefined;
+    isSaved: any;
+    topics: {
+        _id: any;
+        slug: string;
+        title: any;
+        order: any;
+        duration: any;
+        status: LearnTopicStatus;
+        completed: boolean;
+        active: boolean;
+    }[];
+    totalWatchTimeMinutes: any;
+    enrolledCount: any;
+    completionRate: any;
+}>;
+export declare function getLearnTopicBySlug(moduleSlug: string, topicSlug: string, citizenId?: string): Promise<{
+    _id: any;
+    slug: string;
+    moduleId: any;
+    moduleTitle: any;
+    moduleSlug: string;
+    title: any;
+    tag: any;
+    tagColor: string;
+    classification: any;
+    overview: any;
+    status: LearnTopicStatus;
+    order: any;
+    videoType: any;
+    videoUrl: any;
+    thumbnailUrl: any;
+    duration: any;
+    durationSeconds: any;
+    currentTime: string;
+    progressPercent: number;
+    watchCount: any;
+    completionRate: any;
+    likes: any;
+    comments: any;
+    rating: number;
+    instructor: LearnInstructor;
+    weeksDuration: number;
+    lessonCount: number;
+    subtopics: {
+        _id: any;
+        title: any;
+        order: any;
+        duration: any;
+        notes: any;
+        completedBy: any;
+    }[];
+    createdAt: any;
+    updatedAt: any;
+    completed: boolean;
+}>;
+export declare function getContinueReading(citizenId: string): Promise<{
+    slug: string;
+    moduleSlug: string;
+    title: any;
+    tag: any;
+    tagColor: string;
+    gradient: string;
+    progressPercent: any;
+    lastReadAt: any;
+    lastReadLabel: string;
+    currentSectionTitle: string;
+    xpRewardOnCompletion: number;
+}[]>;
+export declare function getFeaturedTopics(): Promise<any[]>;
+export declare function toggleSaveModule(moduleId: string, citizenId: string): Promise<{
+    moduleId: string;
+    saved: any;
+}>;
+export declare function enrolInModule(moduleId: string, citizenId: string): Promise<{
+    _id: string;
+    enrolledAt: any;
+    progressPercent: any;
+    userTab: any;
+}>;
+export declare function markTopicComplete(moduleId: string, topicId: string, citizenId: string): Promise<{
+    topicId: string;
+    completed: boolean;
+    xpTotal: any;
+    xpAwarded: number;
+    streakDays: number;
+    moduleProgressPercent: any;
+    certificateUnlocked: boolean;
+}>;
+export declare function saveVideoProgress(moduleId: string, topicId: string, citizenId: string, currentTimeSeconds: number): Promise<{
+    topicId: string;
+    currentTimeSeconds: number;
+}>;
+//# sourceMappingURL=learn.service.d.ts.map

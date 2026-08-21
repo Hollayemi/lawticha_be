@@ -1,0 +1,22 @@
+import { Request, Response, NextFunction } from 'express';
+export declare const loginHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const logoutHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getCurrentAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const completeOnboardingStepHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const changePasswordHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const forgotPasswordHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const resetPasswordHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const createAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getAdminsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getAdminByIdHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const updateAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const deleteAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const reactivateAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const inviteAdminHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const acceptInviteHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const changeAdminRoleHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getAuditLogsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getMyAuditLogsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getInstructorsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getInstructorModulesHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+//# sourceMappingURL=admin.controller.d.ts.map

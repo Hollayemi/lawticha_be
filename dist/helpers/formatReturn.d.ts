@@ -1,0 +1,104 @@
+import { Types } from "mongoose";
+import { IModule, ISubTopic, ITopic } from "../models/Module.model";
+export declare const lawyerObject: (profile: any) => {
+    id: any;
+    _id: any;
+    scnNumber: any;
+    firstName: any;
+    lastName: any;
+    fullName: string;
+    email: any;
+    picture: any;
+    isUserActive: any;
+    lastLoginAt: any;
+    avatarInitials: string;
+    title: any;
+    specialisms: any;
+    location: any;
+    state: any;
+    rating: any;
+    reviewCount: any;
+    consultationCount: any;
+    responseTime: number;
+    fees: {
+        message: any;
+        call: any;
+        video: any;
+    };
+    isAvailable: any;
+    verificationStatus: any;
+    bio: any;
+    yearsCall: number | undefined;
+    yearOfCall: any;
+    languages: any;
+    badges: any;
+    colorA: any;
+    colorB: any;
+};
+export declare function toModuleDto(doc: IModule & {
+    _id: Types.ObjectId;
+}): {
+    id: string;
+    title: any;
+    category: any;
+    status: any;
+    slug: any;
+    materialSummary: any;
+    thumbnail: any;
+    description: any;
+    topicCount: any;
+    enrolledCount: any;
+    completionRate: any;
+    avgRating: any;
+    reviewCount: any;
+    totalWatchTimeHours: any;
+    instructor: any;
+    instructorId: string;
+    instructorInitials: any;
+    instructorColor: any;
+    trending: any;
+    createdAt: any;
+    updatedAt: any;
+};
+export declare function toTopicDto(doc: ITopic & {
+    _id: Types.ObjectId;
+}): {
+    id: string;
+    moduleId: string;
+    title: any;
+    classification: any;
+    overview: any;
+    status: any;
+    order: any;
+    videoType: any;
+    videoUrl: any;
+    thumbnailUrl: any;
+    duration: any;
+    durationSeconds: any;
+    watchCount: any;
+    completionRate: any;
+    likes: any;
+    comments: any;
+    tags: any;
+    subtopicCount: any;
+    createdAt: any;
+    updatedAt: any;
+};
+export declare function toSubTopicDto(doc: ISubTopic & {
+    _id: Types.ObjectId;
+}): {
+    id: string;
+    topicId: string;
+    moduleId: string;
+    title: any;
+    notes: any;
+    duration: any;
+    durationSeconds: any;
+    order: any;
+    viewCount: any;
+    completedBy: any;
+    createdAt: any;
+    updatedAt: any;
+};
+export declare function toCommentDto(doc: any, replies?: any[]): any;
+//# sourceMappingURL=formatReturn.d.ts.map

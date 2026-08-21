@@ -84,7 +84,7 @@ function getInitials(name: string): string {
 export const generateConsultId = () => `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
 function getRandomColor(): string {
-  const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
+  const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#7C3AED'];
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
@@ -603,8 +603,13 @@ export async function sendCitizenMessage(consultationId: string, citizenId: stri
     senderName,
     senderId: citizenId,
     text,
+    body: text,
     time: new Date(),
     read: false,
+    isRead: false,
+    isDeleted: false,
+    conversationId: new Types.ObjectId(consultationId),
+    senderRole: 'citizen',
   };
 
   consult.transcript.push(message);
@@ -854,8 +859,13 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
     senderName,
     senderId: new Types.ObjectId(lawyerId) as any,
     text,
+    body: text,
     time: new Date(),
     read: false,
+    isRead: false,
+    isDeleted: false,
+    senderRole: 'lawyer',
+    conversationId: consult.conversationId?.toString() || '',
   };
 
   consult.transcript.push(message);

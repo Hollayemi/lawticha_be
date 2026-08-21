@@ -1,0 +1,25 @@
+import { Request, Response, NextFunction } from 'express';
+export declare const listPlansHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getMySubscriptionHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const subscribeHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const changePlanHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const cancelSubscriptionHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const reactivateSubscriptionHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const updateAutoRenewHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getBillingHistoryHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const getInvoiceHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminListPlansHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetPlanHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminCreatePlanHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminUpdatePlanHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminDeletePlanHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminListSubscribersHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetSubscriberHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminUpdateSubscriberHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminDeleteSubscriberHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminListInvoicesHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetInvoiceHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminUpdateInvoiceHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminDeleteInvoiceHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const adminGetSubscriptionStatsHandler: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+//# sourceMappingURL=subscription.controller.d.ts.map

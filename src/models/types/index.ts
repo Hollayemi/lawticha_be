@@ -501,8 +501,8 @@ export interface IConversation extends BaseModel {
 }
 
 export interface IMessage extends BaseModel {
-  conversationId: ObjectId;
-  senderId: ObjectId;
+  conversationId: ObjectId | any;
+  senderId: ObjectId | any;
   senderRole: 'citizen' | 'lawyer';
   body: string;
   attachments?: { url: string; name: string; mimeType: string; sizeBytes: number }[];
@@ -774,7 +774,7 @@ export interface IMessage {
   id: string;
   sender: "citizen" | "lawyer";
   senderName: string;
-  senderId: ObjectId;
+  senderId: ObjectId | any;
   text: string;
   time: Date;
   read: boolean;

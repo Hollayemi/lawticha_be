@@ -72,7 +72,7 @@ function getCategoryMetadata(category: ModuleCategory): {
     contracts: { label: 'Contract Law', color: '#2563EB', bg: '#DBEAFE' },
     business: { label: 'Business Law', color: '#7C3AED', bg: '#EDE9FE' },
     family: { label: 'Family Law', color: '#DB2777', bg: '#FCE7F3' },
-    consumer: { label: 'Consumer Law', color: '#EA580C', bg: '#FFEDD5' },
+    consumer: { label: 'Consumer Law', color: '#5B21B6', bg: '#FFEDD5' },
     road: { label: 'Road Traffic Law', color: '#0891B2', bg: '#CFFAFE' },
   };
   return metadata[category];
@@ -88,7 +88,7 @@ function getGradient(thumbnailUrl: string | null, category: ModuleCategory): str
     contracts: 'linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%)',
     business: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
     family: 'linear-gradient(135deg, #DB2777 0%, #BE185D 100%)',
-    consumer: 'linear-gradient(135deg, #EA580C 0%, #9A3412 100%)',
+    consumer: 'linear-gradient(135deg, #5B21B6 0%, #9A3412 100%)',
     road: 'linear-gradient(135deg, #0891B2 0%, #155E75 100%)',
   };
   return gradients[category];

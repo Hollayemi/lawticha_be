@@ -3,7 +3,7 @@ import { asyncHandler, AppError, AppResponse } from '../middleware/error';
 import * as communityService from '../services/community.service';
 import { COMMUNITY_ROOMS } from '../models/types/community.types';
 import { CommunityCommentModel } from '../models/Community.model';
-import { CommunityPostModel } from '../models';
+// import { CommunityPostModel } from '../models';
 import { Types } from 'mongoose';
 
 // Helper to get user ID from request
@@ -252,7 +252,7 @@ export const deletePostHandler = asyncHandler(
     // Delete all comments first
     await CommunityCommentModel.deleteMany({ postId: new Types.ObjectId(req.params.postId) });
     // Delete the post
-    await CommunityPostModel.findByIdAndDelete(req.params.postId);
+    // await CommunityPostModel.findByIdAndDelete(req.params.postId);
     
     return (res as AppResponse).data(null, 'Post deleted successfully');
   }
@@ -272,10 +272,10 @@ export const deleteCommentHandler = asyncHandler(
     }
     
     // Update post comment count
-    await CommunityPostModel.findByIdAndUpdate(comment.postId, {
-      $inc: { commentCount: -1 },
-      $pull: { comments: comment._id }
-    });
+    // await CommunityPostModel.findByIdAndUpdate(comment.postId, {
+    //   $inc: { commentCount: -1 },
+    //   $pull: { comments: comment._id }
+    // });
     
     // Delete the comment
     await CommunityCommentModel.findByIdAndDelete(req.params.commentId);

@@ -29,15 +29,15 @@ app.use(helmet());
 
 // app.set("trust proxy", 1);
 
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 min
-//   max: 200,
-//   message: { error: 'Too many requests from this IP, please try again later.' },
-//   standardHeaders: true,
-//   legacyHeaders: false,
-// });
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 200,
+  message: { error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// app.use('/api/', limiter);
+app.use('/api/', limiter);
 
 app.use(
   cors({
@@ -140,18 +140,18 @@ app.use('/api/v1/admin/subscriptions', adminSubscriptionRoutes);
 // ── Create HTTP server (required for Socket.io) ──────────────────────────────
 const httpServer = http.createServer(app);
 
-// export const chatService = new ChatService(httpServer, {
-//   redisUrl:    process.env.REDIS_URL ?? 'redis://localhost:6379',
-//   jwtSecret:   process.env.JWT_SECRET,
-//   corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
-//   presenceTtlSeconds:  30,
-//   heartbeatIntervalMs: 20_000,
-//   messagesPageSize:    50,
-// });
+export const chatService = new ChatService(httpServer, {
+  redisUrl:    process.env.REDIS_URL ?? 'redis://localhost:6379',
+  jwtSecret:   process.env.JWT_SECRET,
+  corsOrigins: process.env.CLIENT_URL ?? 'http://localhost:3000',
+  presenceTtlSeconds:  30,
+  heartbeatIntervalMs: 20_000,
+  messagesPageSize:    50,
+});
 
-// app.use('/api/v1/chat', protectBoth, createChatRouter(chatService, {
-//   enrichConversations: attachCaseInfo,
-// }));
+app.use('/api/v1/chat', protectBoth, createChatRouter(chatService, {
+  enrichConversations: attachCaseInfo,
+}));
 
 
 //  Error handling 
@@ -162,7 +162,7 @@ app.use(errorHandler);
 // seedSubscriptionPlans()
 //  Start 
 const server = httpServer.listen(PORT,  async () => {
-  // await chatService.init();
+  await chatService.init();
   console.log(`
     LawTicha Server Running
     Environment: ${process.env.NODE_ENV}
@@ -173,7 +173,7 @@ const server = httpServer.listen(PORT,  async () => {
 
 
 process.on('SIGTERM', async () => {
-  // await chatService.shutdown();
+  await chatService.shutdown();
   process.exit(0);
 });
 

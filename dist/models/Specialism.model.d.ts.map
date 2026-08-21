@@ -1,0 +1,1 @@
+{"version":3,"file":"Specialism.model.d.ts","sourceRoot":"","sources":["../../src/models/Specialism.model.ts"],"names":[],"mappings":"AAAA,OAAO,QAAQ,EAAE,EAAE,QAAQ,EAAU,MAAM,UAAU,CAAC;AAEtD,MAAM,WAAW,WAAY,SAAQ,QAAQ;IACzC,IAAI,EAAE,MAAM,CAAC;IACb,WAAW,EAAE,MAAM,CAAC;IACpB,KAAK,EAAE,MAAM,CAAC;IACd,SAAS,EAAE,IAAI,CAAC;IAChB,SAAS,EAAE,IAAI,CAAC;CACnB;;;;;;AA8BD,wBAAqE"}

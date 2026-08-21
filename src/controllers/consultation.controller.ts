@@ -24,8 +24,6 @@ import {
   completeConsultation,
   // Match requests (lawyer-facing)
   getMatchRequestsForLawyer,
-  acceptMatchRequest,
-  rejectMatchRequest,
   // Utility
   getAvailableStatuses,
   // Admin
@@ -311,20 +309,20 @@ export const getMatchRequestsHandler = asyncHandler(
 );
 
 /** POST /consultations/matches/:id/accept */
-export const acceptMatchRequestHandler = asyncHandler(
-  async (req: Request, res: Response, _next: NextFunction) => {
-    const result = await acceptMatchRequest(req.params.id, req.user!._id.toString());
-    return (res as AppResponse).data(result, 'Match request accepted.');
-  },
-);
+// export const acceptMatchRequestHandler = asyncHandler(
+//   async (req: Request, res: Response, _next: NextFunction) => {
+//     const result = await acceptMatchRequest(req.params.id, req.user!._id.toString());
+//     return (res as AppResponse).data(result, 'Match request accepted.');
+//   },
+// );
 
 /** POST /consultations/matches/:id/reject */
-export const rejectMatchRequestHandler = asyncHandler(
-  async (req: Request, res: Response, _next: NextFunction) => {
-    const result = await rejectMatchRequest(req.params.id, req.user!._id.toString(), req.body.reason);
-    return (res as AppResponse).data(result, 'Match request rejected.');
-  },
-);
+// export const rejectMatchRequestHandler = asyncHandler(
+//   async (req: Request, res: Response, _next: NextFunction) => {
+//     const result = await rejectMatchRequest(req.params.id, req.user!._id.toString(), req.body.reason);
+//     return (res as AppResponse).data(result, 'Match request rejected.');
+//   },
+// );
 
 // ─── UTILITY CONTROLLERS ─────────────────────────────────────────────────────
 
