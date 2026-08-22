@@ -9,7 +9,7 @@ class PurchaseController {
 
         logger.info('Payment callback received:', { reference, provider, platform });
 
-        const redirectTo = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectTo = process.env.CLIENT_URL || 'https://lawticha.com'; // Default to production URL if CLIENT_URL is not set
         try {
             if (!reference) {
                 logger.error('Payment callback: No reference provided');

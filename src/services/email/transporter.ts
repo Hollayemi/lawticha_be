@@ -2,7 +2,7 @@ import { SendMailClient } from "zeptomail";
 
 const ZOHO_ACCOUNT_TOKEN = process.env.ZOHO_ACCOUNT_TOKEN;
 const FROM_ADDRESS = process.env.SMTP_EMAIL;
-const FROM_NAME = process.env.SMTP_FROM_NAME || 'LawTicha';
+const FROM_NAME = process.env.SMTP_FROM_NAME || 'Stephen from LawTicha';
 
 let client: SendMailClient | null = null;
 

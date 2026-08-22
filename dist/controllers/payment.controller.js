@@ -9,7 +9,7 @@ class PurchaseController {
     static async paystackCallBackVerify(req, res) {
         const { reference, provider = 'paystack', platform = 'browser' } = req.query;
         logger_1.default.info('Payment callback received:', { reference, provider, platform });
-        const redirectTo = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectTo = process.env.CLIENT_URL || 'https://lawticha.com';
         try {
             if (!reference) {
                 logger_1.default.error('Payment callback: No reference provided');
