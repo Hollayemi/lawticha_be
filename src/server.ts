@@ -39,7 +39,12 @@ app.use('/api/', limiter);
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000' || "https://lawticha.vercel.app" ,
+    origin: [
+      'https://www.lawticha.com',
+      'https://lawticha.com',
+      'http://localhost:3000',
+      'https://lawticha.vercel.app',
+    ],
     credentials: true,
   })
 );
