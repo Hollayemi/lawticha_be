@@ -172,7 +172,8 @@ export const verifyEmail = asyncHandler(
     user.emailVerificationExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
-    return (res as AppResponse).success('Email verified successfully. You can now sign in.');
+    const redirectTo = process.env.CLIENT_URL || 'https://lawticha.com'
+    return res.redirect(`${redirectTo}/dashboard/`);
   }
 );
 
