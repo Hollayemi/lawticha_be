@@ -21,6 +21,7 @@ export declare const refreshToken: (req: Request, res: Response, next: NextFunct
 export declare const verifyEmail: (req: Request, res: Response, next: NextFunction) => Promise<any>;
 export declare const resendVerification: (req: Request, res: Response, next: NextFunction) => Promise<any>;
 export declare const forgotPassword: (req: Request, res: Response, next: NextFunction) => Promise<any>;
+export declare const verifyResetToken: (req: Request, res: Response, next: NextFunction) => Promise<any>;
 export declare const resetPassword: (req: Request, res: Response, next: NextFunction) => Promise<any>;
 export declare const updatePassword: (req: Request, res: Response, next: NextFunction) => Promise<any>;
 export declare const getMe: (req: Request, res: Response, next: NextFunction) => Promise<any>;

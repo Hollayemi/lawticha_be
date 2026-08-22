@@ -502,7 +502,7 @@ export interface IConversation extends BaseModel {
 
 export interface IMessage extends BaseModel {
   conversationId: ObjectId | any;
-  senderId: ObjectId | any;
+  senderId: ObjectId | any; // null for system messages
   senderRole: 'citizen' | 'lawyer';
   body: string;
   attachments?: { url: string; name: string; mimeType: string; sizeBytes: number }[];

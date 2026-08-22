@@ -43,7 +43,7 @@ function validatePhone(phone: unknown, errors: string[], required = false): void
 
 function validatePassword(password: unknown, errors: string[], required = true): void {
   if (required && (!password || typeof password !== 'string')) {
-    errors.push('Password is required');
+    errors.push('Password is required----');
   } else if (password && typeof password === 'string') {
     if (password.length < 8) {
       errors.push('Password must be at least 8 characters');
@@ -189,13 +189,13 @@ export const validateResetPassword = (
   next: NextFunction
 ): void => {
   const errors: string[] = [];
-  const { token, newPassword } = req.body;
+  const { token, password } = req.body;
 
   if (!token || typeof token !== 'string' || !token.trim()) {
     errors.push('Reset token is required');
   }
 
-  validatePassword(newPassword, errors, true);
+  validatePassword(password, errors, true);
 
   const msg = collectErrors(errors);
   if (msg) return next(new AppError(msg, 400, 'VALIDATION_ERROR'));

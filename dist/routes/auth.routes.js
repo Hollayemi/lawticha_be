@@ -46,6 +46,7 @@ router.post('/resend-verification', auth_controller_1.resendVerification);
  * @body    { email }
  */
 router.post('/forgot-password', auth_validator_1.validateForgotPassword, auth_controller_1.forgotPassword);
+router.use('/validate-reset-token/:token', auth_controller_1.verifyResetToken); // validate token param for reset password route
 /**
  * @route   PATCH /api/v1/auth/reset-password/:token
  * @desc    Set a new password using the token from the reset email

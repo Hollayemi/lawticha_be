@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import UserNotification, { ITypeId } from '../../models/Notification.model';
+import { UserModel } from '../../models/User.model';
+import EmailService from '../../services/email/emailService';
+import { EmailTemplateType, EmailTemplateParams } from '../../services/email/types';
 import logger from '../../utils/logger';
 
 interface NotificationData {
     userId?: string;
-    branchId?: string;
-    store?: string;
-    branch?: string;
     title: string;
     body: string;
     type: string;
@@ -31,6 +31,16 @@ interface SendOptions {
     silent?: boolean;
     skipPush?: boolean;
     sendEmail?: boolean;
+    /**
+     * Pick a dedicated email template + its params for this action's email.
+     * When omitted, the email falls back to a generic template built from
+     * the notification's own title/body (see EmailService.sendForNotification).
+     *
+     * e.g. { type: EmailTemplateType.FORGOT_PASSWORD, params: { name, resetUrl } }
+     */
+    emailTemplate?: {
+        [K in EmailTemplateType]: { type: K; params: EmailTemplateParams[K] };
+    }[EmailTemplateType];
 }
 
 interface NotificationFilter {
@@ -105,7 +115,7 @@ class NotificationController {
         }
 
         if (options.email_notification) {
-            await this.sendEmailNotification(notification, userId, accountType);
+            await this.sendEmailNotification(notification, userId, accountType, options);
         }
 
         return notification;
@@ -184,14 +194,31 @@ class NotificationController {
     static async sendEmailNotification(
         notification: any,
         userId: string,
-        accountType: string = 'user'
+        accountType: string = 'user',
+        options: SendOptions = {}
     ): Promise<void> {
         try {
-            const EmailService = require('../../services/emailService');
+            if (accountType !== 'user') {
+                logger.warn(`Email notification skipped - no email lookup defined for accountType "${accountType}"`);
+                return;
+            }
 
-            await EmailService.singleEmail({
-                userId,
-                notification
+            const user = await UserModel.findById(userId).select('email firstName').lean();
+
+            if (!user?.email) {
+                logger.warn(`Email notification skipped - no email on file for user ${userId}`);
+                return;
+            }
+
+            await EmailService.sendForNotification({
+                to: user.email,
+                emailTemplate: options.emailTemplate,
+                fallback: {
+                    name: user.firstName,
+                    title: notification.title,
+                    body: notification.body,
+                    clickUrl: notification.clickUrl,
+                },
             });
 
             await UserNotification.updateOne(

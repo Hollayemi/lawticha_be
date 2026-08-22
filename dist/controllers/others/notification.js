@@ -4,6 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const Notification_model_1 = __importDefault(require("../../models/Notification.model"));
+const User_model_1 = require("../../models/User.model");
+const emailService_1 = __importDefault(require("../../services/email/emailService"));
 const logger_1 = __importDefault(require("../../utils/logger"));
 class NotificationController {
     static async saveAndSendNotification(data, accountType = 'user', options = {}) {
@@ -39,7 +41,7 @@ class NotificationController {
             await this.sendPushNotification(notification, userId, accountType);
         }
         if (options.email_notification) {
-            await this.sendEmailNotification(notification, userId, accountType);
+            await this.sendEmailNotification(notification, userId, accountType, options);
         }
         return notification;
     }
@@ -88,12 +90,26 @@ class NotificationController {
         }
     }
     //  Send email notification
-    static async sendEmailNotification(notification, userId, accountType = 'user') {
+    static async sendEmailNotification(notification, userId, accountType = 'user', options = {}) {
         try {
-            const EmailService = require('../../services/emailService');
-            await EmailService.singleEmail({
-                userId,
-                notification
+            if (accountType !== 'user') {
+                logger_1.default.warn(`Email notification skipped - no email lookup defined for accountType "${accountType}"`);
+                return;
+            }
+            const user = await User_model_1.UserModel.findById(userId).select('email firstName').lean();
+            if (!user?.email) {
+                logger_1.default.warn(`Email notification skipped - no email on file for user ${userId}`);
+                return;
+            }
+            await emailService_1.default.sendForNotification({
+                to: user.email,
+                emailTemplate: options.emailTemplate,
+                fallback: {
+                    name: user.firstName,
+                    title: notification.title,
+                    body: notification.body,
+                    clickUrl: notification.clickUrl,
+                },
             });
             await Notification_model_1.default.updateOne({ _id: notification._id }, {
                 $set: {

@@ -23,7 +23,6 @@ const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 //  Security 
 app.use((0, helmet_1.default)());
-// app.set("trust proxy", 1);
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 min
     max: 200,

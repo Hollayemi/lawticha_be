@@ -106,7 +106,6 @@ const PurchaseLogSchema: Schema<IPurchaseLog> = new Schema(
             type: String,
             required: [true, 'Transaction reference is required'],
             unique: true,
-            index: true,
             trim: true
         },
         date: {

@@ -84,7 +84,7 @@ function getInitials(name: string): string {
 export const generateConsultId = () => `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
 function getRandomColor(): string {
-  const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#7C3AED'];
+  const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
@@ -599,17 +599,17 @@ export async function sendCitizenMessage(consultationId: string, citizenId: stri
 
   const message: IMessage = {
     id: new Types.ObjectId().toString(),
+    conversationId: consultationId,
     sender: 'citizen',
+    senderRole: 'citizen',
     senderName,
-    senderId: citizenId,
+    senderId: new Types.ObjectId(citizenId),
     text,
     body: text,
     time: new Date(),
     read: false,
     isRead: false,
     isDeleted: false,
-    conversationId: new Types.ObjectId(consultationId),
-    senderRole: 'citizen',
   };
 
   consult.transcript.push(message);
@@ -855,7 +855,9 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
 
   const message: IMessage = {
     id: new Types.ObjectId().toString(),
+    conversationId: consultationId,
     sender: 'lawyer',
+    senderRole: 'lawyer',
     senderName,
     senderId: new Types.ObjectId(lawyerId) as any,
     text,
@@ -864,8 +866,6 @@ export async function sendLawyerMessage(consultationId: string, lawyerId: string
     read: false,
     isRead: false,
     isDeleted: false,
-    senderRole: 'lawyer',
-    conversationId: consult.conversationId?.toString() || '',
   };
 
   consult.transcript.push(message);

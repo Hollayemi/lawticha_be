@@ -3,12 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deactivateAccount = exports.updateProfile = exports.getMe = exports.updatePassword = exports.resetPassword = exports.forgotPassword = exports.resendVerification = exports.verifyEmail = exports.refreshToken = exports.logout = exports.signIn = exports.register = void 0;
+exports.deactivateAccount = exports.updateProfile = exports.getMe = exports.updatePassword = exports.resetPassword = exports.verifyResetToken = exports.forgotPassword = exports.resendVerification = exports.verifyEmail = exports.refreshToken = exports.logout = exports.signIn = exports.register = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const error_1 = require("../middleware/error");
 const User_model_1 = require("../models/User.model");
 const types_1 = require("../models/types");
 const auth_service_1 = require("../services/auth.service");
+const emailService_1 = __importDefault(require("../services/email/emailService"));
+const types_2 = require("../services/email/types");
 //  POST /api/v1/auth/register 
 /**
  * Creates a new citizen or lawyer account.
@@ -35,8 +37,12 @@ exports.register = (0, error_1.asyncHandler)(async (req, res, next) => {
     // Send email verification
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
-    // TODO: wire up email service
-    console.log(`[Auth] Email verification token for ${user.email}: ${rawToken}`);
+    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+    emailService_1.default.send(user.email, types_2.EmailTemplateType.VERIFY_EMAIL, {
+        name: user.firstName,
+        verifyUrl,
+        expiresInHours: 24,
+    }).catch((err) => console.error('[Auth] Failed to send verification email:', err));
     // Spin up role-specific profile
     await (0, auth_service_1.createProfileAfterRegister)(user);
     return (0, auth_service_1.sendTokenResponse)(res, user, 201, 'Account created. Please verify your email.');
@@ -134,23 +140,44 @@ exports.resendVerification = (0, error_1.asyncHandler)(async (req, res, next) =>
     }
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
-    console.log(`[Auth] Resend verification for ${user.email}: ${rawToken}`);
+    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+    emailService_1.default.send(user.email, types_2.EmailTemplateType.VERIFY_EMAIL, {
+        name: user.firstName,
+        verifyUrl,
+        expiresInHours: 24,
+    }).catch((err) => console.error('[Auth] Failed to send verification email:', err));
     return res.success(GENERIC);
 });
 //  POST /api/v1/auth/forgot-password 
 exports.forgotPassword = (0, error_1.asyncHandler)(async (req, res, _next) => {
     const GENERIC = 'If an account with that email exists, a password reset link has been sent.';
     const user = await User_model_1.UserModel
-        .findOne(req.body.email)
+        .findOne({ email: req.body.email })
         ?.select('+passwordResetToken +passwordResetExpires');
     if (!user || !user.isActive)
         return res.success(GENERIC);
     const rawToken = user.getPasswordResetToken();
     await user.save({ validateBeforeSave: false });
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
-    // TODO: plug email service
-    console.log(`[Auth] Password reset URL for ${user.email}: ${resetUrl}`);
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
+    console.log(`[Auth] Sending password reset email to ${user.email} with link: ${resetUrl}`);
+    emailService_1.default.send(user.email, types_2.EmailTemplateType.FORGOT_PASSWORD, {
+        name: user.firstName,
+        resetUrl,
+        expiresInMinutes: 10,
+    }).catch((err) => console.error('[Auth] Failed to send password reset email:', err));
     return res.success(GENERIC);
+});
+//  PATCH /api/v1/auth/validate-reset-token/:token
+exports.verifyResetToken = (0, error_1.asyncHandler)(async (req, res, next) => {
+    const hashedToken = (0, auth_service_1.hashToken)(req.params.token);
+    const user = await User_model_1.UserModel.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordResetToken +passwordResetExpires +passwordChangedAt');
+    if (!user) {
+        return next(new error_1.AppError('Password reset link is invalid or has expired.', 400, 'INVALID_TOKEN'));
+    }
+    return res.success('Password reset token is valid.');
 });
 //  PATCH /api/v1/auth/reset-password/:token 
 exports.resetPassword = (0, error_1.asyncHandler)(async (req, res, next) => {
@@ -166,6 +193,9 @@ exports.resetPassword = (0, error_1.asyncHandler)(async (req, res, next) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
+    emailService_1.default.send(user.email, types_2.EmailTemplateType.PASSWORD_CHANGED, {
+        name: user.firstName,
+    }).catch((err) => console.error('[Auth] Failed to send password-changed email:', err));
     return (0, auth_service_1.sendTokenResponse)(res, user, 200, 'Password reset successfully.');
 });
 //  PATCH /api/v1/auth/update-password 

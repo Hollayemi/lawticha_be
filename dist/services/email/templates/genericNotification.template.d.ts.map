@@ -1,0 +1,1 @@
+{"version":3,"file":"genericNotification.template.d.ts","sourceRoot":"","sources":["../../../../src/services/email/templates/genericNotification.template.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,yBAAyB,EAAE,aAAa,EAAE,MAAM,UAAU,CAAC;AAMpE,wBAAgB,8BAA8B,CAAC,MAAM,EAAE,yBAAyB,GAAG,aAAa,CAgB/F"}

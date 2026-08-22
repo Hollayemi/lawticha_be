@@ -12,6 +12,7 @@ import {
   getMe,
   updateProfile,
   deactivateAccount,
+  verifyResetToken,
 } from '../controllers/auth.controller';
 import { protect } from '../middleware/auth.middleware';
 import {
@@ -71,6 +72,8 @@ router.post('/resend-verification', resendVerification);
  * @body    { email }
  */
 router.post('/forgot-password', validateForgotPassword, forgotPassword);
+
+router.use('/validate-reset-token/:token', verifyResetToken); // validate token param for reset password route
 
 /**
  * @route   PATCH /api/v1/auth/reset-password/:token

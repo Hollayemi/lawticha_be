@@ -11,6 +11,8 @@ import {
   createProfileAfterRegister,
   loadUserProfile,
 } from '../services/auth.service';
+import EmailService from '../services/email/emailService';
+import { EmailTemplateType } from '../services/email/types';
 
 //  POST /api/v1/auth/register 
 /**
@@ -50,8 +52,13 @@ export const register = asyncHandler(
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
 
-    // TODO: wire up email service
-    console.log(`[Auth] Email verification token for ${user.email}: ${rawToken}`);
+    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+
+    EmailService.send(user.email, EmailTemplateType.VERIFY_EMAIL, {
+      name: user.firstName,
+      verifyUrl,
+      expiresInHours: 24,
+    }).catch((err) => console.error('[Auth] Failed to send verification email:', err));
 
     // Spin up role-specific profile
     await createProfileAfterRegister(user);
@@ -194,7 +201,12 @@ export const resendVerification = asyncHandler(
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
 
-    console.log(`[Auth] Resend verification for ${user.email}: ${rawToken}`);
+    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+    EmailService.send(user.email, EmailTemplateType.VERIFY_EMAIL, {
+      name: user.firstName,
+      verifyUrl,
+      expiresInHours: 24,
+    }).catch((err) => console.error('[Auth] Failed to send verification email:', err));
 
     return (res as AppResponse).success(GENERIC);
   }
@@ -207,7 +219,7 @@ export const forgotPassword = asyncHandler(
     const GENERIC = 'If an account with that email exists, a password reset link has been sent.';
 
     const user = await UserModel
-      .findOne(req.body.email)
+      .findOne({email: req.body.email})
       ?.select('+passwordResetToken +passwordResetExpires');
 
     if (!user || !user.isActive) return (res as AppResponse).success(GENERIC);
@@ -215,13 +227,38 @@ export const forgotPassword = asyncHandler(
     const rawToken = user.getPasswordResetToken();
     await user.save({ validateBeforeSave: false });
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
-    // TODO: plug email service
-    console.log(`[Auth] Password reset URL for ${user.email}: ${resetUrl}`);
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
+
+    console.log(`[Auth] Sending password reset email to ${user.email} with link: ${resetUrl}`);
+
+    EmailService.send(user.email, EmailTemplateType.FORGOT_PASSWORD, {
+      name: user.firstName,
+      resetUrl,
+      expiresInMinutes: 10,
+    }).catch((err) => console.error('[Auth] Failed to send password reset email:', err));
 
     return (res as AppResponse).success(GENERIC);
   }
 );
+
+//  PATCH /api/v1/auth/validate-reset-token/:token
+
+export const verifyResetToken = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const hashedToken = hashToken(req.params.token);
+
+    const user = await UserModel.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordResetToken +passwordResetExpires +passwordChangedAt');
+
+    if (!user) {
+      return next(new AppError('Password reset link is invalid or has expired.', 400, 'INVALID_TOKEN'));
+    }
+
+    return (res as AppResponse).success('Password reset token is valid.');
+  }
+)
 
 //  PATCH /api/v1/auth/reset-password/:token 
 
@@ -242,6 +279,10 @@ export const resetPassword = asyncHandler(
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
+
+    EmailService.send(user.email, EmailTemplateType.PASSWORD_CHANGED, {
+      name: user.firstName,
+    }).catch((err) => console.error('[Auth] Failed to send password-changed email:', err));
 
     return sendTokenResponse(res, user, 200, 'Password reset successfully.');
   }

@@ -31,7 +31,7 @@ function getCategoryMetadata(category) {
         contracts: { label: 'Contract Law', color: '#2563EB', bg: '#DBEAFE' },
         business: { label: 'Business Law', color: '#7C3AED', bg: '#EDE9FE' },
         family: { label: 'Family Law', color: '#DB2777', bg: '#FCE7F3' },
-        consumer: { label: 'Consumer Law', color: '#5B21B6', bg: '#FFEDD5' },
+        consumer: { label: 'Consumer Law', color: '#EA580C', bg: '#FFEDD5' },
         road: { label: 'Road Traffic Law', color: '#0891B2', bg: '#CFFAFE' },
     };
     return metadata[category];
@@ -47,7 +47,7 @@ function getGradient(thumbnailUrl, category) {
         contracts: 'linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%)',
         business: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
         family: 'linear-gradient(135deg, #DB2777 0%, #BE185D 100%)',
-        consumer: 'linear-gradient(135deg, #5B21B6 0%, #9A3412 100%)',
+        consumer: 'linear-gradient(135deg, #EA580C 0%, #9A3412 100%)',
         road: 'linear-gradient(135deg, #0891B2 0%, #155E75 100%)',
     };
     return gradients[category];
@@ -84,73 +84,127 @@ async function calculateWeeksDuration(moduleId) {
 }
 // Main service functions
 async function listLearnModules(params) {
-    const { tab, search, category, page = 1, pageSize = 20, citizenId } = params;
-    const filter = { status: 'active' };
-    if (category && category !== 'all') {
+    const { tab, search, category, page = 1, pageSize = 20, citizenId, } = params;
+    const currentPage = Math.max(1, Number(page) || 1);
+    const limit = Math.max(1, Number(pageSize) || 20);
+    const skip = (currentPage - 1) * limit;
+    const searchTerm = search?.trim();
+    // ----------------------------------------
+    // 1. Build the base module filter
+    // ----------------------------------------
+    const filter = {
+        status: "active",
+    };
+    if (category && category !== "all") {
         filter.category = category;
     }
-    if (search) {
-        filter.$text = { $search: search };
+    // Use text search if a search term exists.
+    if (searchTerm) {
+        filter.$text = {
+            $search: searchTerm,
+        };
     }
-    const skip = (page - 1) * pageSize;
-    // Get modules
-    const [modules, total] = await Promise.all([
-        Module_model_1.ModuleModel.find(filter)
-            .sort({ trending: -1, createdAt: -1 })
-            .skip(skip)
-            .limit(pageSize),
-        Module_model_1.ModuleModel.countDocuments(filter),
-    ]);
-    // If citizen is authenticated, get their enrollment data
-    let enrollments = new Map();
-    let savedModules = new Set();
+    // ----------------------------------------
+    // 2. Get citizen enrollment information
+    // ----------------------------------------
+    let enrollmentMap = new Map();
+    let savedModuleIds = new Set();
     if (citizenId) {
-        const userEnrollments = await Enrollment_model_1.EnrollmentModel.find({
-            citizenId: new mongoose_1.Types.ObjectId(citizenId),
-            moduleId: { $in: modules.map(m => m._id) },
-        });
-        for (const enrollment of userEnrollments) {
-            enrollments.set(enrollment.moduleId.toString(), enrollment);
-        }
-        const savedEnrollments = await Enrollment_model_1.EnrollmentModel.find({
-            citizenId: new mongoose_1.Types.ObjectId(citizenId),
-            isSaved: true,
-            moduleId: { $in: modules.map(m => m._id) },
-        });
-        for (const enrollment of savedEnrollments) {
-            savedModules.add(enrollment.moduleId.toString());
+        const citizenObjectId = new mongoose_1.Types.ObjectId(citizenId);
+        const enrollments = await Enrollment_model_1.EnrollmentModel.find({
+            citizenId: citizenObjectId,
+        }).lean();
+        for (const enrollment of enrollments) {
+            const moduleId = enrollment.moduleId.toString();
+            enrollmentMap.set(moduleId, enrollment);
+            if (enrollment.isSaved === true) {
+                savedModuleIds.add(moduleId);
+            }
         }
     }
-    // Transform modules
-    const transformedModules = await Promise.all(modules.map(async (module) => {
-        const enrollment = enrollments.get(module._id.toString());
-        const isSaved = savedModules.has(module._id.toString());
+    // ----------------------------------------
+    // 3. Get modules matching the database filters
+    // ----------------------------------------
+    let modulesQuery = Module_model_1.ModuleModel.find(filter);
+    // Search results should be ordered by relevance.
+    if (searchTerm) {
+        modulesQuery = modulesQuery
+            .select({
+            score: {
+                $meta: "textScore",
+            },
+        })
+            .sort({
+            score: {
+                $meta: "textScore",
+            },
+            trending: -1,
+            createdAt: -1,
+        });
+    }
+    else {
+        modulesQuery = modulesQuery.sort({
+            trending: -1,
+            createdAt: -1,
+        });
+    }
+    const allMatchingModules = await modulesQuery.lean();
+    // ----------------------------------------
+    // 4. Apply user-specific tab filtering
+    // ----------------------------------------
+    let filteredModules = allMatchingModules;
+    if (tab && tab !== "all") {
+        filteredModules = allMatchingModules.filter((module) => {
+            const moduleId = String(module._id);
+            const enrollment = enrollmentMap.get(moduleId);
+            if (tab === "active") {
+                return enrollment?.status === "active";
+            }
+            if (tab === "complete") {
+                return enrollment?.status === "complete";
+            }
+            if (tab === "saved") {
+                return savedModuleIds.has(moduleId);
+            }
+            return true;
+        });
+    }
+    // ----------------------------------------
+    // 5. Calculate total BEFORE pagination
+    // ----------------------------------------
+    const total = filteredModules.length;
+    const totalPages = Math.ceil(total / limit);
+    // ----------------------------------------
+    // 6. Apply pagination AFTER all filters
+    // ----------------------------------------
+    const paginatedModules = filteredModules.slice(skip, skip + limit);
+    // ----------------------------------------
+    // 7. Transform modules
+    // ----------------------------------------
+    const transformedModules = await Promise.all(paginatedModules.map(async (module) => {
+        const moduleId = module._id.toString();
+        const enrollment = enrollmentMap.get(moduleId);
+        const isSaved = savedModuleIds.has(moduleId);
         const categoryMeta = getCategoryMetadata(module.category);
         const instructor = await getInstructorData(module.instructorId);
         const weeksDuration = await calculateWeeksDuration(module._id);
         let userTab;
         if (enrollment) {
-            if (enrollment.status === 'complete')
-                userTab = 'complete';
-            else if (enrollment.status === 'active')
-                userTab = 'active';
-            else if (enrollment.isSaved)
-                userTab = 'saved';
+            if (enrollment.status === "complete") {
+                userTab = "complete";
+            }
+            else if (enrollment.status === "active") {
+                userTab = "active";
+            }
+            else if (enrollment.isSaved) {
+                userTab = "saved";
+            }
         }
         else if (isSaved) {
-            userTab = 'saved';
-        }
-        // Filter by tab if specified
-        if (tab && tab !== 'all') {
-            if (tab === 'active' && (!enrollment || enrollment.status !== 'active'))
-                return null;
-            if (tab === 'complete' && (!enrollment || enrollment.status !== 'complete'))
-                return null;
-            if (tab === 'saved' && !isSaved)
-                return null;
+            userTab = "saved";
         }
         return {
-            _id: module._id.toString(),
+            _id: moduleId,
             slug: (0, functions_1.generateSlug)(module.title),
             title: module.title,
             description: module.description,
@@ -161,9 +215,9 @@ async function listLearnModules(params) {
             status: module.status,
             thumbnailUrl: module.thumbnail,
             gradient: getGradient(module.thumbnail, module.category),
-            tag: categoryMeta.label.split(' ')[0],
+            tag: categoryMeta.label.split(" ")[0],
             tagColor: categoryMeta.color,
-            price: 'Free',
+            price: "Free",
             instructor,
             rating: module.avgRating,
             reviewCount: module.reviewCount,
@@ -178,13 +232,15 @@ async function listLearnModules(params) {
             isSaved,
         };
     }));
-    const filteredModules = transformedModules?.filter((m) => m !== null);
+    // ----------------------------------------
+    // 8. Return result
+    // ----------------------------------------
     return {
-        data: filteredModules,
-        total: filteredModules.length,
-        page,
-        pageSize,
-        totalPages: Math.ceil(filteredModules.length / pageSize),
+        data: transformedModules,
+        total,
+        page: currentPage,
+        pageSize: limit,
+        totalPages,
     };
 }
 async function getFullMaterialByModuleSlug(slug) {
@@ -432,6 +488,7 @@ async function getLearnTopicBySlug(moduleSlug, topicSlug, citizenId) {
         title: subtopic.title,
         order: subtopic.order,
         duration: subtopic.duration,
+        // completed: subtopic.completedBy.includes(citizenId || ''),
         notes: subtopic.notes,
         completedBy: subtopic.completedBy,
     }));

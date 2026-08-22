@@ -1,0 +1,1 @@
+{"version":3,"file":"verifyEmail.template.d.ts","sourceRoot":"","sources":["../../../../src/services/email/templates/verifyEmail.template.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,iBAAiB,EAAE,aAAa,EAAE,MAAM,UAAU,CAAC;AAG5D,wBAAgB,iBAAiB,CAAC,MAAM,EAAE,iBAAiB,GAAG,aAAa,CAmB1E"}

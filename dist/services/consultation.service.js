@@ -115,7 +115,7 @@ function getInitials(name) {
 const generateConsultId = () => `CST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 exports.generateConsultId = generateConsultId;
 function getRandomColor() {
-    const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#7C3AED'];
+    const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
     return colors[Math.floor(Math.random() * colors.length)];
 }
 /**
@@ -555,17 +555,17 @@ async function sendCitizenMessage(consultationId, citizenId, text) {
     const senderName = user ? `${user.firstName} ${user.lastName}`.trim() : 'Citizen';
     const message = {
         id: new mongoose_1.Types.ObjectId().toString(),
+        conversationId: consultationId,
         sender: 'citizen',
+        senderRole: 'citizen',
         senderName,
-        senderId: citizenId,
+        senderId: new mongoose_1.Types.ObjectId(citizenId),
         text,
         body: text,
         time: new Date(),
         read: false,
         isRead: false,
         isDeleted: false,
-        conversationId: new mongoose_1.Types.ObjectId(consultationId),
-        senderRole: 'citizen',
     };
     consult.transcript.push(message);
     await consult.save();
@@ -782,7 +782,9 @@ async function sendLawyerMessage(consultationId, lawyerId, text) {
     const senderName = user ? `${user.firstName} ${user.lastName}`.trim() : 'Lawyer';
     const message = {
         id: new mongoose_1.Types.ObjectId().toString(),
+        conversationId: consultationId,
         sender: 'lawyer',
+        senderRole: 'lawyer',
         senderName,
         senderId: new mongoose_1.Types.ObjectId(lawyerId),
         text,
@@ -791,8 +793,6 @@ async function sendLawyerMessage(consultationId, lawyerId, text) {
         read: false,
         isRead: false,
         isDeleted: false,
-        senderRole: 'lawyer',
-        conversationId: consult.conversationId?.toString() || '',
     };
     consult.transcript.push(message);
     await consult.save();

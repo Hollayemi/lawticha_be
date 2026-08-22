@@ -38,7 +38,7 @@ function validatePhone(phone, errors, required = false) {
 }
 function validatePassword(password, errors, required = true) {
     if (required && (!password || typeof password !== 'string')) {
-        errors.push('Password is required');
+        errors.push('Password is required----');
     }
     else if (password && typeof password === 'string') {
         if (password.length < 8) {
@@ -156,11 +156,11 @@ exports.validateForgotPassword = validateForgotPassword;
  */
 const validateResetPassword = (req, res, next) => {
     const errors = [];
-    const { token, newPassword } = req.body;
+    const { token, password } = req.body;
     if (!token || typeof token !== 'string' || !token.trim()) {
         errors.push('Reset token is required');
     }
-    validatePassword(newPassword, errors, true);
+    validatePassword(password, errors, true);
     const msg = collectErrors(errors);
     if (msg)
         return next(new error_1.AppError(msg, 400, 'VALIDATION_ERROR'));

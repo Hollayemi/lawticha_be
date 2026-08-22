@@ -16,6 +16,7 @@ const LawyerProfile_model_1 = require("../models/LawyerProfile.model");
 const error_1 = require("../middleware/error");
 const types_1 = require("../models/types");
 const notification_1 = __importDefault(require("../controllers/others/notification"));
+const types_2 = require("./email/types");
 //  Cookie config 
 const BASE_COOKIE_OPTS = {
     httpOnly: true,
@@ -83,12 +84,22 @@ async function createProfileAfterRegister(user) {
         await CitizenProfile_model_1.CitizenProfileModel.create({ userId: user._id });
         await notification_1.default.saveAndSendNotification({
             userId: user._id.toString(),
-            title: 'Welcome to LawTicha! 🎉',
+            title: 'Welcome to LawTicha!',
             body: `Welcome ${user.firstName}! Start exploring legal resources, consultations, and learning modules.`,
             type: 'welcome',
             clickUrl: '/dashboard',
             priority: 'high'
-        }, 'user', { push_notification: true, email_notification: true });
+        }, 'user', {
+            push_notification: true,
+            email_notification: true,
+            emailTemplate: {
+                type: types_2.EmailTemplateType.WELCOME,
+                params: {
+                    name: user.firstName,
+                    dashboardUrl: `${process.env.CLIENT_URL}/dashboard`,
+                },
+            },
+        });
     }
     if (user.role === types_1.UserRole.LAWYER) {
         await LawyerProfile_model_1.LawyerProfileModel.create({
@@ -102,7 +113,17 @@ async function createProfileAfterRegister(user) {
             type: 'welcome',
             clickUrl: '/lawyer/verification',
             priority: 'high'
-        }, 'user', { push_notification: true, email_notification: true });
+        }, 'user', {
+            push_notification: true,
+            email_notification: true,
+            emailTemplate: {
+                type: types_2.EmailTemplateType.WELCOME,
+                params: {
+                    name: user.firstName,
+                    dashboardUrl: `${process.env.CLIENT_URL}/lawyer/verification`,
+                },
+            },
+        });
     }
 }
 //  loadUserProfile 

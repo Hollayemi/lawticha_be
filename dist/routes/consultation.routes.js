@@ -61,7 +61,7 @@ router.post('/lawyer/:id/complete', consultation_controller_1.completeConsultati
 router.get('/matches', consultation_controller_1.getMatchRequestsHandler);
 // POST /api/v1/consultations/matches/:id/accept
 // router.post('/matches/:id/accept', acceptMatchRequestHandler);
-// // POST /api/v1/consultations/matches/:id/reject
+// POST /api/v1/consultations/matches/:id/reject
 // router.post('/matches/:id/reject', rejectMatchRequestHandler);
 exports.default = router;
 //# sourceMappingURL=consultation.routes.js.map

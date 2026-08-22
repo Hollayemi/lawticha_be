@@ -7,6 +7,7 @@ import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
 import { UserRole } from '../models/types';
 import NotificationController from '../controllers/others/notification';
+import { EmailTemplateType } from './email/types';
 //  Cookie config 
 
 const BASE_COOKIE_OPTS = {
@@ -92,12 +93,22 @@ export async function createProfileAfterRegister(user: IUserDocument): Promise<v
 
     await NotificationController.saveAndSendNotification({
       userId: user._id.toString(),
-      title: 'Welcome to LawTicha! 🎉',
+      title: 'Welcome to LawTicha!',
       body: `Welcome ${user.firstName}! Start exploring legal resources, consultations, and learning modules.`,
       type: 'welcome',
       clickUrl: '/dashboard',
       priority: 'high'
-    }, 'user', { push_notification: true, email_notification: true });
+    }, 'user', {
+      push_notification: true,
+      email_notification: true,
+      emailTemplate: {
+        type: EmailTemplateType.WELCOME,
+        params: {
+          name: user.firstName,
+          dashboardUrl: `${process.env.CLIENT_URL}/dashboard`,
+        },
+      },
+    });
   }
 
   if (user.role === UserRole.LAWYER) {
@@ -113,7 +124,17 @@ export async function createProfileAfterRegister(user: IUserDocument): Promise<v
       type: 'welcome',
       clickUrl: '/lawyer/verification',
       priority: 'high'
-    }, 'user', { push_notification: true, email_notification: true });
+    }, 'user', {
+      push_notification: true,
+      email_notification: true,
+      emailTemplate: {
+        type: EmailTemplateType.WELCOME,
+        params: {
+          name: user.firstName,
+          dashboardUrl: `${process.env.CLIENT_URL}/lawyer/verification`,
+        },
+      },
+    });
   }
 }
 

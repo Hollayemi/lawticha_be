@@ -92,7 +92,6 @@ const PurchaseLogSchema = new mongoose_1.Schema({
         type: String,
         required: [true, 'Transaction reference is required'],
         unique: true,
-        index: true,
         trim: true
     },
     date: {

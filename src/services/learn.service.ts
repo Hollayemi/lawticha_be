@@ -72,7 +72,7 @@ function getCategoryMetadata(category: ModuleCategory): {
     contracts: { label: 'Contract Law', color: '#2563EB', bg: '#DBEAFE' },
     business: { label: 'Business Law', color: '#7C3AED', bg: '#EDE9FE' },
     family: { label: 'Family Law', color: '#DB2777', bg: '#FCE7F3' },
-    consumer: { label: 'Consumer Law', color: '#5B21B6', bg: '#FFEDD5' },
+    consumer: { label: 'Consumer Law', color: '#EA580C', bg: '#FFEDD5' },
     road: { label: 'Road Traffic Law', color: '#0891B2', bg: '#CFFAFE' },
   };
   return metadata[category];
@@ -88,7 +88,7 @@ function getGradient(thumbnailUrl: string | null, category: ModuleCategory): str
     contracts: 'linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%)',
     business: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
     family: 'linear-gradient(135deg, #DB2777 0%, #BE185D 100%)',
-    consumer: 'linear-gradient(135deg, #5B21B6 0%, #9A3412 100%)',
+    consumer: 'linear-gradient(135deg, #EA580C 0%, #9A3412 100%)',
     road: 'linear-gradient(135deg, #0891B2 0%, #155E75 100%)',
   };
   return gradients[category];
@@ -130,118 +130,236 @@ async function calculateWeeksDuration(moduleId: Types.ObjectId): Promise<number>
 
 // Main service functions
 export async function listLearnModules(params: ListLearnModulesParams) {
-  const { tab, search, category, page = 1, pageSize = 20, citizenId } = params;
+  const {
+    tab,
+    search,
+    category,
+    page = 1,
+    pageSize = 20,
+    citizenId,
+  } = params;
 
-  const filter: any = { status: 'active' };
+  const currentPage = Math.max(1, Number(page) || 1);
+  const limit = Math.max(1, Number(pageSize) || 20);
+  const skip = (currentPage - 1) * limit;
 
-  if (category && category !== 'all') {
+  const searchTerm = search?.trim();
+
+  // ----------------------------------------
+  // 1. Build the base module filter
+  // ----------------------------------------
+
+  const filter: any = {
+    status: "active",
+  };
+
+  if (category && category !== "all") {
     filter.category = category;
   }
 
-  if (search) {
-    filter.$text = { $search: search };
+  // Use text search if a search term exists.
+  if (searchTerm) {
+    filter.$text = {
+      $search: searchTerm,
+    };
   }
 
-  const skip = (page - 1) * pageSize;
+  // ----------------------------------------
+  // 2. Get citizen enrollment information
+  // ----------------------------------------
 
-  // Get modules
-  const [modules, total] = await Promise.all([
-    ModuleModel.find(filter)
-      .sort({ trending: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(pageSize),
-    ModuleModel.countDocuments(filter),
-  ]);
-
-  // If citizen is authenticated, get their enrollment data
-  let enrollments: Map<string, any> = new Map();
-  let savedModules: Set<string> = new Set();
+  let enrollmentMap = new Map<string, any>();
+  let savedModuleIds = new Set<string>();
 
   if (citizenId) {
-    const userEnrollments = await EnrollmentModel.find({
-      citizenId: new Types.ObjectId(citizenId),
-      moduleId: { $in: modules.map(m => m._id) },
-    });
+    const citizenObjectId = new Types.ObjectId(citizenId);
 
-    for (const enrollment of userEnrollments) {
-      enrollments.set(enrollment.moduleId.toString(), enrollment);
-    }
+    const enrollments = await EnrollmentModel.find({
+      citizenId: citizenObjectId,
+    }).lean();
 
-    const savedEnrollments = await EnrollmentModel.find({
-      citizenId: new Types.ObjectId(citizenId),
-      isSaved: true,
-      moduleId: { $in: modules.map(m => m._id) },
-    });
+    for (const enrollment of enrollments) {
+      const moduleId = enrollment.moduleId.toString();
 
-    for (const enrollment of savedEnrollments) {
-      savedModules.add(enrollment.moduleId.toString());
+      enrollmentMap.set(moduleId, enrollment);
+
+      if (enrollment.isSaved === true) {
+        savedModuleIds.add(moduleId);
+      }
     }
   }
 
-  // Transform modules
-  const transformedModules: LearnModule[] | any = await Promise.all(
-    modules.map(async (module) => {
-      const enrollment = enrollments.get(module._id.toString());
-      const isSaved = savedModules.has(module._id.toString());
-      const categoryMeta = getCategoryMetadata(module.category);
-      const instructor = await getInstructorData(module.instructorId);
-      const weeksDuration = await calculateWeeksDuration(module._id);
+  // ----------------------------------------
+  // 3. Get modules matching the database filters
+  // ----------------------------------------
 
-      let userTab: LearnTabKey | undefined;
-      if (enrollment) {
-        if (enrollment.status === 'complete') userTab = 'complete';
-        else if (enrollment.status === 'active') userTab = 'active';
-        else if (enrollment.isSaved) userTab = 'saved';
-      } else if (isSaved) {
-        userTab = 'saved';
+  let modulesQuery = ModuleModel.find(filter);
+
+  // Search results should be ordered by relevance.
+  if (searchTerm) {
+    modulesQuery = modulesQuery
+      .select({
+        score: {
+          $meta: "textScore",
+        },
+      })
+      .sort({
+        score: {
+          $meta: "textScore",
+        },
+        trending: -1,
+        createdAt: -1,
+      });
+  } else {
+    modulesQuery = modulesQuery.sort({
+      trending: -1,
+      createdAt: -1,
+    });
+  }
+
+  const allMatchingModules = await modulesQuery.lean();
+
+  // ----------------------------------------
+  // 4. Apply user-specific tab filtering
+  // ----------------------------------------
+
+  let filteredModules = allMatchingModules;
+
+  if (tab && tab !== "all") {
+    filteredModules = allMatchingModules.filter((module) => {
+      const moduleId = String(module._id);
+      const enrollment = enrollmentMap.get(moduleId);
+
+      if (tab === "active") {
+        return enrollment?.status === "active";
       }
 
-      // Filter by tab if specified
-      if (tab && tab !== 'all') {
-        if (tab === 'active' && (!enrollment || enrollment.status !== 'active')) return null;
-        if (tab === 'complete' && (!enrollment || enrollment.status !== 'complete')) return null;
-        if (tab === 'saved' && !isSaved) return null;
+      if (tab === "complete") {
+        return enrollment?.status === "complete";
+      }
+
+      if (tab === "saved") {
+        return savedModuleIds.has(moduleId);
+      }
+
+      return true;
+    });
+  }
+
+  // ----------------------------------------
+  // 5. Calculate total BEFORE pagination
+  // ----------------------------------------
+
+  const total = filteredModules.length;
+
+  const totalPages = Math.ceil(total / limit);
+
+  // ----------------------------------------
+  // 6. Apply pagination AFTER all filters
+  // ----------------------------------------
+
+  const paginatedModules = filteredModules.slice(
+    skip,
+    skip + limit
+  );
+
+  // ----------------------------------------
+  // 7. Transform modules
+  // ----------------------------------------
+
+  const transformedModules: LearnModule[] = await Promise.all(
+    paginatedModules.map(async (module: any) => {
+      const moduleId = module._id.toString();
+
+      const enrollment = enrollmentMap.get(moduleId);
+
+      const isSaved = savedModuleIds.has(moduleId);
+
+      const categoryMeta = getCategoryMetadata(module.category);
+
+      const instructor = await getInstructorData(
+        module.instructorId
+      );
+
+      const weeksDuration = await calculateWeeksDuration(
+        module._id
+      );
+
+      let userTab: LearnTabKey | undefined;
+
+      if (enrollment) {
+        if (enrollment.status === "complete") {
+          userTab = "complete";
+        } else if (enrollment.status === "active") {
+          userTab = "active";
+        } else if (enrollment.isSaved) {
+          userTab = "saved";
+        }
+      } else if (isSaved) {
+        userTab = "saved";
       }
 
       return {
-        _id: module._id.toString(),
+        _id: moduleId,
         slug: generateSlug(module.title),
+
         title: module.title,
         description: module.description,
+
         category: module.category,
         categoryLabel: categoryMeta.label,
         categoryColor: categoryMeta.color,
         categoryBg: categoryMeta.bg,
+
         status: module.status as LearnModuleStatus,
+
         thumbnailUrl: module.thumbnail,
-        gradient: getGradient(module.thumbnail, module.category),
-        tag: categoryMeta.label.split(' ')[0],
+
+        gradient: getGradient(
+          module.thumbnail,
+          module.category
+        ),
+
+        tag: categoryMeta.label.split(" ")[0],
         tagColor: categoryMeta.color,
-        price: 'Free',
+
+        price: "Free",
+
         instructor,
+
         rating: module.avgRating,
         reviewCount: module.reviewCount,
+
         weeksDuration,
         lessonCount: module.topicCount,
+
         trending: module.trending,
+
         createdAt: module.createdAt.toISOString(),
         updatedAt: module.updatedAt.toISOString(),
-        enrolledAt: enrollment?.startedAt?.toISOString(),
-        progressPercent: enrollment?.progressPercent || 0,
+
+        enrolledAt:
+          enrollment?.startedAt?.toISOString(),
+
+        progressPercent:
+          enrollment?.progressPercent || 0,
+
         userTab,
         isSaved,
       };
     })
   );
 
-  const filteredModules = transformedModules?.filter((m: any) => m !== null) as LearnModule[];
+  // ----------------------------------------
+  // 8. Return result
+  // ----------------------------------------
 
   return {
-    data: filteredModules,
-    total: filteredModules.length,
-    page,
-    pageSize,
-    totalPages: Math.ceil(filteredModules.length / pageSize),
+    data: transformedModules,
+    total,
+    page: currentPage,
+    pageSize: limit,
+    totalPages,
   };
 }
 
@@ -524,6 +642,7 @@ export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string,
     title: subtopic.title,
     order: subtopic.order,
     duration: subtopic.duration,
+    // completed: subtopic.completedBy.includes(citizenId || ''),
     notes: subtopic.notes,
     completedBy: subtopic.completedBy,
   }));

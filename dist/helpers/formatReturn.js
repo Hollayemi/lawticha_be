@@ -6,10 +6,11 @@ exports.toTopicDto = toTopicDto;
 exports.toSubTopicDto = toSubTopicDto;
 exports.toCommentDto = toCommentDto;
 const lawyerObject = (profile) => {
+    console.log("profile", profile);
     return ({
         id: profile._id,
         _id: profile._id,
-        scnNumber: profile.scnNumber,
+        scnNumber: profile.scnNumber || profile.nbaNumber || '',
         firstName: profile.userId?.firstName || '',
         lastName: profile.userId?.lastName || '',
         fullName: profile.userId?.firstName + " " + profile.userId?.lastName || "",

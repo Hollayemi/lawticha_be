@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
 import { ITypeId } from '../../models/Notification.model';
+import { EmailTemplateType, EmailTemplateParams } from '../../services/email/types';
 interface NotificationData {
     userId?: string;
-    branchId?: string;
-    store?: string;
-    branch?: string;
     title: string;
     body: string;
     type: string;
@@ -31,6 +29,19 @@ interface SendOptions {
     silent?: boolean;
     skipPush?: boolean;
     sendEmail?: boolean;
+    /**
+     * Pick a dedicated email template + its params for this action's email.
+     * When omitted, the email falls back to a generic template built from
+     * the notification's own title/body (see EmailService.sendForNotification).
+     *
+     * e.g. { type: EmailTemplateType.FORGOT_PASSWORD, params: { name, resetUrl } }
+     */
+    emailTemplate?: {
+        [K in EmailTemplateType]: {
+            type: K;
+            params: EmailTemplateParams[K];
+        };
+    }[EmailTemplateType];
 }
 interface NotificationFilter {
     userId?: string;
@@ -52,7 +63,7 @@ declare class NotificationController {
     static sendNotification(notification: any, accountType?: string, options?: SendOptions): Promise<any>;
     static sendInAppNotification(notification: any, userId: string, accountType?: string): Promise<void>;
     static sendPushNotification(notification: any, userId: string, accountType?: string): Promise<any>;
-    static sendEmailNotification(notification: any, userId: string, accountType?: string): Promise<void>;
+    static sendEmailNotification(notification: any, userId: string, accountType?: string, options?: SendOptions): Promise<void>;
     static getNotificationList(filter: NotificationFilter, accountType?: string, options?: GetNotificationOptions): Promise<any>;
     static _groupByTimePeriod(notifications: any[]): any[];
     static _formatNotification(notification: any): any;

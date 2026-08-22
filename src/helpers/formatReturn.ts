@@ -2,10 +2,11 @@ import { Types } from "mongoose";
 import { IModule, ISubTopic, ITopic } from "../models/Module.model";
 
 export const lawyerObject = (profile: any) => {
+  console.log("profile", profile)
   return ({
     id: profile._id,
     _id: profile._id,
-    scnNumber: profile.scnNumber,
+    scnNumber: profile.scnNumber || profile.nbaNumber || '',
     firstName: (profile.userId as any)?.firstName || '',
     lastName: (profile.userId as any)?.lastName || '',
     fullName: (profile.userId as any)?.firstName  + " " + (profile.userId as any)?.lastName || "",

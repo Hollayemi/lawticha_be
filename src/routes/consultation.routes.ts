@@ -29,8 +29,6 @@ import {
   
   // Match request routes (lawyer-facing)
   getMatchRequestsHandler,
-  // acceptMatchRequestHandler,
-  // rejectMatchRequestHandler,
   
   // Utility routes
   getAvailableStatusesHandler,
@@ -121,7 +119,7 @@ router.get('/matches', getMatchRequestsHandler);
 // POST /api/v1/consultations/matches/:id/accept
 // router.post('/matches/:id/accept', acceptMatchRequestHandler);
 
-// // POST /api/v1/consultations/matches/:id/reject
+// POST /api/v1/consultations/matches/:id/reject
 // router.post('/matches/:id/reject', rejectMatchRequestHandler);
 
 export default router;
