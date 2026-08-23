@@ -10,6 +10,7 @@ import {
   updateAutoRenewHandler,
   getBillingHistoryHandler,
   getInvoiceHandler,
+  completePaymentHandler
 } from '../controllers/subscription.controller';
 
 const router = Router();
@@ -22,6 +23,9 @@ router.get('/subscription/plans', listPlansHandler);
 
 // GET   /api/v1/citizens/subscription
 router.get('/subscription', getMySubscriptionHandler);
+
+// GET   /api/v1/citizens/subscription/complete-payment
+router.put('/subscription/complete-payment', completePaymentHandler);
 
 // POST  /api/v1/citizens/subscription/subscribe
 router.post('/subscription/subscribe', subscribeHandler);

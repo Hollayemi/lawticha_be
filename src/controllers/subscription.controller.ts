@@ -4,6 +4,7 @@ import {
   listPublicPlans,
   getMySubscription,
   subscribeToPlan,
+  completePayment,
   changePlan,
   cancelSubscription,
   reactivateSubscription,
@@ -84,6 +85,23 @@ export const subscribeHandler = asyncHandler(
     return (res as AppResponse).data(result, 'Subscription initiated. Complete payment to activate.');
   }
 );
+
+
+// POST /api/v1/citizens/me/subscription/complete-payment
+export const completePaymentHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { subscriptionId } = req.body as Record<string, any>;
+
+    if (!subscriptionId) return next(new AppError('subscriptionId is required', 400, 'VALIDATION_ERROR'));
+
+    const result = await completePayment(userId(req), subscriptionId);
+    return (res as AppResponse).data(result, 'Payment completed successfully.');
+  }
+);
+
+// ==================== CITIZEN: SUBSCRIPTION MANAGEMENT ====================
+
+
 
 // POST /api/v1/citizens/me/subscription/change-plan
 export const changePlanHandler = asyncHandler(

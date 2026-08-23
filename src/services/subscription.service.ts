@@ -143,6 +143,65 @@ export async function subscribeToPlan(
   return { subscription, payment: paymentResult.data };
 }
 
+export async function completePayment(userId: string, subscriptionId: string) {
+
+   const user = await UserModel.findById(userId);
+  if (!user) throw new AppError('User not found.', 404, 'NOT_FOUND');
+
+  const subscription = await SubscriptionModel.findOne({_id: subscriptionId, userId });
+  if (!subscription) throw new AppError('Subscription not found.', 404, 'NOT_FOUND');
+
+  if (subscription.status !== SubscriptionStatus.PENDING) {
+    throw new AppError('This subscription is not pending payment.', 400, 'INVALID_STATUS');
+  }
+
+  const plan = await SubscriptionPlanModel.findById(subscription.planId);
+  if (!plan) throw new AppError('Subscription plan not found.', 404, 'PLAN_NOT_FOUND');
+
+  const now = new Date();
+
+  const paymentGateway = new PaymentGateway();
+  const paymentReference = paymentGateway.generatePaymentReference(`SUB${subscription._id}`);
+
+  const paymentResult = await paymentGateway.initializePayment('paystack', {
+    email: user.email,
+    amount: plan.price,
+    reference: paymentReference,
+    coreId: subscription._id.toString(),
+    userId: userId,
+    description: `Subscription to ${plan.name}`,
+    phone: user.phone,
+    metadata: {
+      type: 'settings',
+      coreId: subscription._id.toString(),
+      redirect: 'subscription',
+    },
+  });
+
+  if (!paymentResult.success) {
+    subscription.status = SubscriptionStatus.INACTIVE;
+    await subscription.save();
+    throw new AppError(paymentResult.error || 'Failed to initialize payment.', 400, 'PAYMENT_INIT_FAILED');
+  }
+
+  subscription.pendingPaymentRef = paymentResult.data.reference;
+  await subscription.save();
+
+  // Notify user of successful activation
+  await NotificationController.saveAndSendNotification({
+    userId: subscription.userId.toString(),
+    title: '✅ Subscription Activated!',
+    body: `Your "${plan.name}" subscription is now active. Start enjoying premium features!`,
+    type: 'subscription_activated',
+    clickUrl: '/subscription/status',
+    priority: 'high'
+  }, 'user', { push_notification: true, email_notification: true });
+
+  
+  return { subscription, payment: paymentResult.data };
+
+}
+
 // TODO(billing): this charges the FULL new-plan price on every change-plan request,
 // it does not prorate for time already paid/unused on the current cycle. If proration
 // is needed later, compute a credit from (subscription.endDate - now) against the

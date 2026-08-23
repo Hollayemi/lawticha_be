@@ -163,8 +163,10 @@ export const verifyEmail = asyncHandler(
       emailVerificationExpires: { $gt: new Date() },
     }).select('+emailVerificationToken +emailVerificationExpires');
 
+    const redirectTo = process.env.CLIENT_URL || 'https://lawticha.com'
+    
     if (!user) {
-      return next(new AppError('Verification link is invalid or has expired.', 400, 'INVALID_TOKEN'));
+      return res.redirect(`${redirectTo}/dashboard?verification=failed`);
     }
 
     user.isVerified = true;
@@ -172,7 +174,6 @@ export const verifyEmail = asyncHandler(
     user.emailVerificationExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
-    const redirectTo = process.env.CLIENT_URL || 'https://lawticha.com'
     return res.redirect(`${redirectTo}/dashboard/`);
   }
 );
