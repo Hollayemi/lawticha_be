@@ -245,7 +245,7 @@ export async function changePlan(userId: string, payload: ChangePlanPayload) {
     metadata: {
       type: 'subscription',
       coreId: subscription._id.toString(),
-      redirect: 'subscription',
+      redirect: 'settings',
     },
   });
 
