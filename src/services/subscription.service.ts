@@ -116,7 +116,7 @@ export async function subscribeToPlan(
     metadata: {
       type: 'settings',
       coreId: subscription._id.toString(),
-      redirect: 'subscription',
+      redirect: 'settings',
       promoCode,
     },
   });
@@ -174,7 +174,7 @@ export async function completePayment(userId: string, subscriptionId: string) {
     metadata: {
       type: 'settings',
       coreId: subscription._id.toString(),
-      redirect: 'subscription',
+      redirect: 'settings',
     },
   });
 

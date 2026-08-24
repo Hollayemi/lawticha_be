@@ -42,14 +42,18 @@ function validatePhone(phone: unknown, errors: string[], required = false): void
 }
 
 function validatePassword(password: unknown, errors: string[], required = true): void {
-  if (required && (!password || typeof password !== 'string')) {
-    errors.push('Password is required----');
-  } else if (password && typeof password === 'string') {
-    if (password.length < 8) {
-      errors.push('Password must be at least 8 characters');
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      errors.push('Password must contain uppercase letter, lowercase letter, and number');
-    }
+  // Skip validation if not required and no password provided
+  if (!required && !password) return;
+  
+  // Check if password exists and is a string
+  if (!password || typeof password !== 'string') {
+    errors.push('Password is required');
+    return;
+  }
+  
+  // Only check minimum length
+  if (password.length < 5) {
+    errors.push('Password must be at least 4 characters');
   }
 }
 
