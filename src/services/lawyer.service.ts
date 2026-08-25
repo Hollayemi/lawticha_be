@@ -740,7 +740,7 @@ export async function getMarketplaceLawyers(params: MarketplaceLawyersParams = {
   } = params;
 
   const filter: any = {
-    verificationStatus: VerificationStatus.VERIFIED,
+    // verificationStatus: VerificationStatus.VERIFIED,
   };
 
   if (subscribedOnly) {
