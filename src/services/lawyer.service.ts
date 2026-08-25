@@ -261,7 +261,7 @@ export async function submitVerification(
     title: '📋 Verification Submitted',
     body: 'Your verification documents have been submitted. We\'ll review them within 24-48 hours.',
     type: 'verification_submitted',
-    clickUrl: '/dashboard/settings?tab=lawyer_profile',
+    clickUrl: `${process.env.CLIENT_URL}/dashboard/settings?tab=lawyer_profile`,
     priority: 'medium'
   }, 'user', { push_notification: true, email_notification: true });
 
@@ -345,7 +345,7 @@ export async function advanceVerification(
       title: '📋 Verification Update',
       body: `Your verification has been advanced to ${profile.verificationStatus}. ${note || ''}`,
       type: 'verification_updated',
-      clickUrl: '/dashboard/settings?tab=lawyer_profile',
+      clickUrl: `${process.env.CLIENT_URL}/dashboard/settings?tab=lawyer_profile`,
       priority: 'medium'
     }, 'user', { push_notification: true });
   }
@@ -387,7 +387,7 @@ export async function rejectVerification(
     title: '❌ Verification Rejected',
     body: `Your verification request has been rejected. Reason: ${reason || 'Please contact support for more information.'}`,
     type: 'verification_rejected',
-    clickUrl: '/dashboard/settings?tab=lawyer_profile',
+    clickUrl: `${process.env.CLIENT_URL}/dashboard/settings?tab=lawyer_profile`,
     priority: 'high'
   }, 'user', { push_notification: true, email_notification: true });
 

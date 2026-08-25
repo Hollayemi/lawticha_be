@@ -37,7 +37,7 @@ exports.register = (0, error_1.asyncHandler)(async (req, res, next) => {
     // Send email verification
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
-    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${rawToken}`;
+    const verifyUrl = `${process.env.API_URL}/verify-email?token=${rawToken}`;
     emailService_1.default.send(user.email, types_2.EmailTemplateType.VERIFY_EMAIL, {
         name: user.firstName,
         verifyUrl,
