@@ -122,7 +122,7 @@ export async function createProfileAfterRegister(user: IUserDocument): Promise<v
       title: 'Welcome to LawTicha Legal Network! ⚖️',
       body: `Welcome ${user.firstName}! Complete your verification to start accepting consultations.`,
       type: 'welcome',
-      clickUrl: '/lawyer/verification',
+      clickUrl: '/dashboard?welcome=lawyer',
       priority: 'high'
     }, 'user', {
       push_notification: true,
@@ -131,7 +131,7 @@ export async function createProfileAfterRegister(user: IUserDocument): Promise<v
         type: EmailTemplateType.WELCOME,
         params: {
           name: user.firstName,
-          dashboardUrl: `${process.env.CLIENT_URL}/lawyer/verification`,
+          dashboardUrl: `${process.env.CLIENT_URL}/dashboard?welcome=lawyer`,
         },
       },
     });

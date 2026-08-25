@@ -169,7 +169,7 @@ async function submitVerification(userId, input) {
         title: '📋 Verification Submitted',
         body: 'Your verification documents have been submitted. We\'ll review them within 24-48 hours.',
         type: 'verification_submitted',
-        clickUrl: '/lawyer/verification-status',
+        clickUrl: '/dashboard/settings?tab=lawyer_profile',
         priority: 'medium'
     }, 'user', { push_notification: true, email_notification: true });
     // Notify admin of new verification
@@ -243,7 +243,7 @@ async function advanceVerification(profileId, admin, note) {
             title: '📋 Verification Update',
             body: `Your verification has been advanced to ${profile.verificationStatus}. ${note || ''}`,
             type: 'verification_updated',
-            clickUrl: '/lawyer/verification-status',
+            clickUrl: '/dashboard/settings?tab=lawyer_profile',
             priority: 'medium'
         }, 'user', { push_notification: true });
     }
@@ -275,7 +275,7 @@ async function rejectVerification(profileId, admin, reason, infoNeeded) {
         title: '❌ Verification Rejected',
         body: `Your verification request has been rejected. Reason: ${reason || 'Please contact support for more information.'}`,
         type: 'verification_rejected',
-        clickUrl: '/lawyer/verification-status',
+        clickUrl: '/dashboard/settings?tab=lawyer_profile',
         priority: 'high'
     }, 'user', { push_notification: true, email_notification: true });
     Admin_model_1.AuditLogModel.create({
