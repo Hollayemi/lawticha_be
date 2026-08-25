@@ -93,7 +93,7 @@ export const submitVerificationHandler = asyncHandler(
 
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
 
-    const result = await submitVerification(req.user!._id.toString(), { ...req.body, files });
+    const result = await submitVerification(req.user!._id.toString(), { ...payload, files });
     return (res as AppResponse).data(result, result.message);
   }
 );

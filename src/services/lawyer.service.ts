@@ -106,6 +106,7 @@ export async function buildVerificationDocumentsFromFiles(
  * lawyer only re-uploads a fresh "governmentId", their previously-accepted
  * "callToBar" document is left untouched instead of being wiped out.
  */
+
 function mergeVerificationDocuments(
   existing: IVerificationDocument[] = [],
   incoming: IVerificationDocument[] = []
@@ -821,7 +822,7 @@ export async function getMarketplaceLawyers(params: MarketplaceLawyersParams = {
  * GET /marketplace/lawyers/:scnNumber
  */
 export async function getLawyerByScnNumber(scnNumber: string) {
-  const profile = await LawyerProfileModel.findOne({ scnNumber: scnNumber.replace(/-/g, "/") })
+  const profile = await LawyerProfileModel.findOne({ _id: scnNumber })
     .populate('userId', 'firstName lastName email avatarUrl')
     .populate('specialisms');
 
@@ -911,7 +912,7 @@ export async function requestLawyerMatch(citizenId: string, input: RequestMatchI
  * GET /marketplace/lawyers/:scnNumber/availability
  */
 export async function getLawyerAvailability(scnNumber: string, date?: string) {
-  const profile = await LawyerProfileModel.findOne({ scnNumber: scnNumber.replace(/-/g, "/") });
+  const profile = await LawyerProfileModel.findOne({ scnNumber: scnNumber });
   if (!profile) {
     throw new AppError('Lawyer not found', 404, 'NOT_FOUND');
   }
