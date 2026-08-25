@@ -200,9 +200,11 @@ export const resendVerification = asyncHandler(
       return next(new AppError('A verification email was recently sent. Please wait a few minutes.', 429, 'RATE_LIMIT'));
     }
 
+    
     const rawToken = user.getEmailVerificationToken();
     await user.save({ validateBeforeSave: false });
 
+    
     const verifyUrl = `${process.env.API_URL}/verify-email?token=${rawToken}`;
     EmailService.send(user.email, EmailTemplateType.VERIFY_EMAIL, {
       name: user.firstName,
