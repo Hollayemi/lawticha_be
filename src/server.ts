@@ -47,7 +47,7 @@ app.use(
     //   'https://lawticha.vercel.app',
     // ],
     origin: '*',
-    credentials: true,
+    // credentials: true,
   })
 );
 app.use(express.json({ limit: '15mb' }));
