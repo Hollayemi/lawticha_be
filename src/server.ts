@@ -39,13 +39,14 @@ app.use('/api/', limiter);
 
 app.use(
   cors({
-    origin: [
-      'https://www.lawticha.com',
-      'https://lawticha.com',
-      'https://module.lawticha.com/',
-      'http://localhost:3000',
-      'https://lawticha.vercel.app',
-    ],
+    // origin: [
+    //   'https://www.lawticha.com',
+    //   'https://lawticha.com',
+    //   'https://module.lawticha.com/',
+    //   'http://localhost:3000',
+    //   'https://lawticha.vercel.app',
+    // ],
+    origin: '*',
     credentials: true,
   })
 );
