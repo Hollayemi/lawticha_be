@@ -65,6 +65,11 @@ export function toModuleDto(doc: IModule & { _id: Types.ObjectId }) {
     instructorInitials:  obj.instructorInitials,
     instructorColor:     obj.instructorColor,
     trending:            obj.trending,
+    createdBy:           obj.createdBy,
+    submittedAt:         obj.submittedAt,
+    reviewedAt:          obj.reviewedAt,
+    reviewedBy:          obj.reviewedBy ? String(obj.reviewedBy) : null,
+    reviewNote:          obj.reviewNote,
     createdAt:           obj.createdAt,
     updatedAt:           obj.updatedAt,
   };

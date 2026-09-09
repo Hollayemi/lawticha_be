@@ -13,6 +13,7 @@ import { GoalModel, CitizenGoalProgressModel } from '../models/Goal.model';
 import { AppError } from '../middleware/error';
 import { awardXP } from './citizen.service';
 import { colorFromString } from '../utils/functions';
+import { SubtopicActivityModel } from '../models/SubtopicEngagement.model';
 
 // ── Formatting helpers ─────────────────────────────────────────────────────
 
@@ -66,14 +67,30 @@ async function getOrCreateProfile(userId: string) {
 // ── Section builders ───────────────────────────────────────────────────────
 
 export async function getUserStats(userId: string) {
-  const profile = await getOrCreateProfile(userId);
+  const enrollments = await EnrollmentModel.find({ citizenId: userId });
+  const allCompletedTopics = enrollments.reduce((sum, e) => sum + (e.lessonsCompleted?.length || 0), 0);
+  const subtopicActivities = await SubtopicActivityModel.find({ citizenId: userId });
+  const completedSubtopics = await SubtopicActivityModel.find({ citizenId: userId, completed: true  })
+  const totalStudySeconds = completedSubtopics.reduce((sum, e) => sum + (e.duration || 0), 0);
+  const totalXp = enrollments.reduce((sum, e) => sum + (e.xpEarned || 0), 0);
+
+  const streakDaysSet = new Set<string>();
+  subtopicActivities.forEach((activity) => {
+    const dateStr = activity.createdAt.toISOString().split('T')[0];
+    streakDaysSet.add(dateStr);
+  });
+
+  const minutes = Math.floor(totalStudySeconds / 60);
+const seconds = totalStudySeconds % 60;
+
   return {
-    topicsCompletedCount: profile.topicsCompletedCount,
-    streakDays: profile.streakDays,
-    certificatesCount: profile.certificatesCount,
-    totalStudyMinutes: profile.totalStudyMinutes,
-    xpTotal: profile.xpTotal,
-    xpLevel: profile.xpLevel,
+    topicsCompletedCount: allCompletedTopics,
+    completedLessons: completedSubtopics.length,
+    streakDays: streakDaysSet.size,
+    certificatesCount: 0,
+    totalStudyMinutes: `${minutes} min ${seconds} sec`,
+    xpTotal: totalXp,
+    xpLevel:  0,
   };
 }
 
@@ -86,8 +103,9 @@ export async function getContinueReading(userId: string, limit = 4) {
     .limit(limit)
     .populate('moduleId');
 
-  return enrollments
-    .filter((e) => e.moduleId)
+    console.log(enrollments)
+
+  return enrollments.filter((e) => e.moduleId)
     .map((e) => {
       const mod = e.moduleId as any;
       const remainingXp = Math.max((mod.xpReward || 0) - (e.xpEarned || 0), 0);

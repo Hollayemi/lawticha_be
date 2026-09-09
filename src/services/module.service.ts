@@ -19,6 +19,9 @@ import { AppError } from '../middleware/error';
 import { colorFromString, generateSlug } from '../utils/functions';
 import { toModuleDto, toTopicDto, toSubTopicDto, toCommentDto } from '../helpers/formatReturn';
 import cloudinary from '../utils/cloudinary';
+import NotificationController from '../controllers/others/notification';
+import { AuditLogModel } from '../models/Admin.model';
+import { AuditAction } from '../models/types';
 
 
 //  MODULE CRUD 
@@ -224,6 +227,211 @@ export async function updateModule(id: string, input: UpdateModuleInput) {
 
   const updated = await ModuleModel.findByIdAndUpdate(id, updates, { new: true });
   return toModuleDto(updated as any);
+}
+
+//  INSTRUCTOR-SCOPED MODULE MANAGEMENT 
+//
+// Lawyers approved as instructors create & manage only their own modules.
+// New modules always start as 'draft'. They stay editable (title, topics,
+// subtopics) until the instructor submits for review, at which point status
+// becomes 'pending' and admin takes over via reviewModule().
+
+export interface CreateInstructorModuleInput {
+  title: string;
+  category: ModuleCategory;
+  description: string;
+  thumbnailUrl?: string;
+  thumbnailFile?: string;
+}
+
+export async function createInstructorModule(
+  instructorUserId: string,
+  input: CreateInstructorModuleInput
+) {
+  const user = await UserModel.findById(instructorUserId);
+  const instructorName = user ? `${user.firstName} ${user.lastName}`.trim() : 'Instructor';
+  const instructorInitials = user ? (user.firstName[0] ?? '') + (user.lastName[0] ?? '') : 'IN';
+
+  const thumbnail =
+    input.thumbnailUrl ||
+    (input.thumbnailFile && (await cloudinary.uploadFile(input.thumbnailFile, 'book/modules')).url);
+  if (!thumbnail) throw new AppError('Upload at least one cover File', 400, 'VALIDATION_ERROR');
+
+  const doc = await ModuleModel.create({
+    title: input.title,
+    slug: generateSlug(input.title),
+    category: input.category,
+    description: input.description,
+    instructorId: new Types.ObjectId(instructorUserId),
+    instructor: instructorName,
+    instructorInitials: instructorInitials.toUpperCase(),
+    instructorColor: colorFromString(instructorName),
+    thumbnail,
+    status: 'draft',
+    createdBy: 'instructor',
+  });
+
+  return toModuleDto(doc as any);
+}
+
+export interface InstructorModuleFilters {
+  status?: ModuleStatus | 'all';
+  page?: number;
+  pageSize?: number;
+}
+
+export async function listInstructorModules(
+  instructorUserId: string,
+  filters: InstructorModuleFilters = {}
+) {
+  const { status, page = 1, pageSize = 20 } = filters;
+
+  const filter: Record<string, unknown> = { instructorId: new Types.ObjectId(instructorUserId) };
+  if (status && status !== 'all') filter.status = status;
+
+  const skip = (page - 1) * pageSize;
+
+  const [docs, total] = await Promise.all([
+    ModuleModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(pageSize),
+    ModuleModel.countDocuments(filter),
+  ]);
+
+  return {
+    data: docs.map(toModuleDto),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+/**
+ * Loads a module and throws unless it belongs to the given instructor.
+ * Shared by instructor-facing module/topic/subtopic handlers.
+ */
+export async function assertModuleOwnership(moduleId: string, instructorUserId: string) {
+  const module = await ModuleModel.findById(moduleId);
+  if (!module) throw new AppError('Module not found.', 404, 'NOT_FOUND');
+  if (String(module.instructorId) !== String(instructorUserId)) {
+    throw new AppError('You do not have access to this module.', 403, 'FORBIDDEN');
+  }
+  return module;
+}
+
+/** Instructors may only edit content while it hasn't been submitted (or was sent back). */
+export function assertModuleEditable(module: IModule) {
+  if (module.status !== 'draft' && module.status !== 'rejected') {
+    throw new AppError(
+      'This module is under review or published — you can no longer edit it.',
+      400,
+      'INVALID_STATE'
+    );
+  }
+}
+
+export interface UpdateInstructorModuleInput {
+  title?: string;
+  category?: ModuleCategory;
+  description?: string;
+  thumbnailUrl?: string;
+}
+
+export async function updateInstructorModule(
+  instructorUserId: string,
+  moduleId: string,
+  input: UpdateInstructorModuleInput
+) {
+  const module = await assertModuleOwnership(moduleId, instructorUserId);
+  assertModuleEditable(module);
+
+  const updates: Partial<IModule> = {};
+  if (input.title !== undefined) {
+    updates.title = input.title;
+    updates.slug = generateSlug(input.title);
+  }
+  if (input.category !== undefined) updates.category = input.category;
+  if (input.description !== undefined) updates.description = input.description;
+  if (input.thumbnailUrl !== undefined) updates.thumbnail = input.thumbnailUrl;
+
+  const updated = await ModuleModel.findByIdAndUpdate(moduleId, updates, { new: true });
+  return toModuleDto(updated as any);
+}
+
+export async function deleteInstructorModule(instructorUserId: string, moduleId: string) {
+  const module = await assertModuleOwnership(moduleId, instructorUserId);
+  assertModuleEditable(module);
+  await deleteModule(moduleId);
+}
+
+/**
+ * Instructor submits a draft (or a previously-rejected module) for admin review.
+ * Requires at least one topic so admin isn't reviewing an empty shell.
+ */
+export async function submitInstructorModule(instructorUserId: string, moduleId: string) {
+  const module = await assertModuleOwnership(moduleId, instructorUserId);
+  if (module.status !== 'draft' && module.status !== 'rejected') {
+    throw new AppError('Only draft or rejected modules can be submitted for review.', 400, 'INVALID_STATE');
+  }
+
+  const topicCount = await TopicModel.countDocuments({ moduleId });
+  if (topicCount === 0) {
+    throw new AppError('Add at least one topic before submitting for review.', 400, 'VALIDATION_ERROR');
+  }
+
+  module.status = 'pending';
+  module.submittedAt = new Date();
+  module.reviewNote = '';
+  await module.save();
+
+  return toModuleDto(module as any);
+}
+
+//  ADMIN: REVIEW INSTRUCTOR-SUBMITTED MODULE 
+
+export async function reviewModule(
+  moduleId: string,
+  admin: { adminId: string; adminName: string },
+  decision: 'approve' | 'reject',
+  note?: string
+) {
+  const module = await ModuleModel.findById(moduleId);
+  if (!module) throw new AppError('Module not found.', 404, 'NOT_FOUND');
+  if (module.status !== 'pending') {
+    throw new AppError('Only modules pending review can be approved or rejected.', 400, 'INVALID_STATE');
+  }
+
+  module.status = decision === 'approve' ? 'active' : 'rejected';
+  module.reviewedAt = new Date();
+  module.reviewedBy = new Types.ObjectId(admin.adminId);
+  module.reviewNote = note ?? '';
+  await module.save();
+
+  await NotificationController.saveAndSendNotification(
+    {
+      userId: module.instructorId.toString(),
+      title: decision === 'approve' ? '✅ Module Published!' : '📋 Module Sent Back',
+      body:
+        decision === 'approve'
+          ? `"${module.title}" has been reviewed and published. It's now live for learners.`
+          : `"${module.title}" needs changes before it can be published. ${note || ''}`.trim(),
+      type: decision === 'approve' ? 'module_approved' : 'module_rejected',
+      clickUrl: `${process.env.CLIENT_URL}/instructor/modules/${module._id}`,
+      priority: 'high',
+    },
+    'user',
+    { push_notification: true, email_notification: true }
+  ).catch(() => null);
+
+  AuditLogModel.create({
+    adminId: admin.adminId,
+    adminName: admin.adminName,
+    action: decision === 'approve' ? AuditAction.MODULE_APPROVED : AuditAction.MODULE_REJECTED,
+    targetType: 'module',
+    targetId: module._id,
+    meta: { note },
+  }).catch(() => null);
+
+  return toModuleDto(module as any);
 }
 
 export async function deleteModule(id: string) {

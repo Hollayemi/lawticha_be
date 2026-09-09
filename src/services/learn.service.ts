@@ -7,6 +7,7 @@ import { LawyerProfileModel } from '../models/LawyerProfile.model';
 import { AppError } from '../middleware/error';
 import { generateSlug } from '../utils/functions';
 import NotificationController from '../controllers/others/notification';
+import { SubtopicActivityModel } from '../models/SubtopicEngagement.model';
 
 // Types
 export type LearnTabKey = 'all' | 'active' | 'complete' | 'saved';
@@ -363,6 +364,32 @@ export async function listLearnModules(params: ListLearnModulesParams) {
   };
 }
 
+export async function getModuleMetaData(moduleId: string): Promise<{ totalDuration: number; topicDuration: number }> {
+  // sum all the durationSeconds off all subtopics for the given moduleId
+  console.log('Calculating total duration for moduleId:', moduleId);
+   const module = await ModuleModel.findOne({ _id: moduleId });
+
+  if (!module) {
+    throw new AppError('Module not found---', 404, 'MODULE_NOT_FOUND');
+  }
+
+  const subtopics = await SubTopicModel.find({
+    moduleId: module._id
+  })
+
+  const totalDuration = subtopics.reduce((sum, subtopic) => sum + subtopic.durationSeconds, 0);
+
+  //get all topics for the module and sum their durationSeconds as well
+  const topics = await TopicModel.find({
+    moduleId: module._id,
+    status: 'published'
+  })
+
+  const topicDuration = topics.reduce((sum, topic) => sum + topic.durationSeconds, 0);
+
+  return { totalDuration, topicDuration };
+}
+
 export async function getFullMaterialByModuleSlug(slug: string) {
 
   if (!slug) {
@@ -586,6 +613,8 @@ export async function getLearnModuleBySlug(slug: string, citizenId?: string) {
   };
 }
 
+
+
 export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string, citizenId?: string) {
   // Find module by slug
   const modules = await ModuleModel.find({ status: 'active' });
@@ -620,14 +649,9 @@ export async function getLearnTopicBySlug(moduleSlug: string, topicSlug: string,
       moduleId: module._id,
     });
 
-    const userProgress = await UserProgressModel.findOne({
-      citizenId: new Types.ObjectId(citizenId),
-      lessonId: topic._id,
-    });
-
-    if (userProgress) {
-      isCompleted = userProgress.status === 'done';
-      currentTimeSeconds = userProgress.videoPositionSeconds || 0;
+    if (enrollment) {
+      isCompleted = enrollment.lessonsCompleted.includes(topic._id);
+      currentTimeSeconds = enrollment.videoPositionSeconds || 0;
       const minutes = Math.floor(currentTimeSeconds / 60);
       const seconds = currentTimeSeconds % 60;
       currentTime = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -816,6 +840,9 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
       _id: moduleId,
       enrolledAt: existingEnrollment.startedAt.toISOString(),
       progressPercent: existingEnrollment.progressPercent,
+      overallTime: existingEnrollment.overallTime,
+      currentTimeSpent: existingEnrollment.currentTimeSpent,
+      totalLessons: existingEnrollment.totalLessons,
       userTab: existingEnrollment.status,
     };
   }
@@ -823,6 +850,9 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
   const enrollment = new EnrollmentModel({
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
+    overallTime: (await getModuleMetaData(moduleId)).totalDuration,
+    currentTimeSpent: 0,
+    totalLessons: (await TopicModel.countDocuments({ moduleId: new Types.ObjectId(moduleId), status: 'published' })),
     status: 'active',
     startedAt: new Date(),
     lastActivityAt: new Date(),
@@ -851,12 +881,15 @@ export async function enrolInModule(moduleId: string, citizenId: string) {
     _id: moduleId,
     enrolledAt: enrollment.startedAt.toISOString(),
     progressPercent: 0,
+    overallTime: enrollment.overallTime,
+    currentTimeSpent: enrollment.currentTimeSpent,
+    totalLessons: enrollment.totalLessons,
     userTab: 'active',
   };
 }
 
 export async function markTopicComplete(moduleId: string, topicId: string, citizenId: string) {
-  const enrollment = await EnrollmentModel.findOne({
+  let enrollment = await EnrollmentModel.findOne({
     citizenId: new Types.ObjectId(citizenId),
     moduleId: new Types.ObjectId(moduleId),
   });
@@ -866,49 +899,38 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
   }
 
   // Check if already completed
-  const existingProgress = await UserProgressModel.findOne({
+  const completedSubtopics = await SubtopicActivityModel.find({
     citizenId: new Types.ObjectId(citizenId),
-    lessonId: new Types.ObjectId(topicId),
+    topicId: new Types.ObjectId(topicId),
+    completed: true,
+  });
+
+  // sum all the durationSeconds of completed subtopics for this topic
+  const completedDuration = completedSubtopics.reduce((sum, subtopic) => sum + +subtopic.duration, 0) || 0;
+  console.log(`Completed duration for topic ${topicId}: ${completedDuration} seconds`);
+  // Get total subtopics for this topic
+  const totalSubtopics = await SubTopicModel.countDocuments({
+    topicId: new Types.ObjectId(topicId),
+    moduleId: new Types.ObjectId(moduleId),
   });
 
   let xpAwarded = 0;
   let certificateUnlocked = false;
 
-  if (!existingProgress || existingProgress.status !== 'done') {
+  if (completedSubtopics.length >= totalSubtopics) {
     xpAwarded = 50; // XP for completing a topic
-
-    // Create or update progress
-    await UserProgressModel.findOneAndUpdate(
-      {
-        citizenId: new Types.ObjectId(citizenId),
-        lessonId: new Types.ObjectId(topicId),
-      },
-      {
-        citizenId: new Types.ObjectId(citizenId),
-        moduleId: new Types.ObjectId(moduleId),
-        lessonId: new Types.ObjectId(topicId),
-        enrollmentId: enrollment._id,
-        status: 'done',
-        completedAt: new Date(),
-        xpAwarded,
-      },
-      { upsert: true }
-    );
 
     // Update enrollment progress
     const totalTopics = await TopicModel.countDocuments({
       moduleId: new Types.ObjectId(moduleId),
       status: 'published',
     });
-    const completedTopics = await UserProgressModel.countDocuments({
-      citizenId: new Types.ObjectId(citizenId),
-      moduleId: new Types.ObjectId(moduleId),
-      status: 'done',
-    });
-
-    const newProgressPercent = (completedTopics / totalTopics) * 100;
+    
+    // Update progress percent and lessons completed
+    const newProgressPercent = ((+enrollment.lessonsCompleted.length+1)  / totalTopics) * 100;
     enrollment.progressPercent = newProgressPercent;
     enrollment.lessonsCompleted.push(new Types.ObjectId(topicId));
+    enrollment.currentTimeSpent += completedDuration;
 
     if (newProgressPercent >= 100) {
       enrollment.status = 'complete';
@@ -964,6 +986,7 @@ export async function markTopicComplete(moduleId: string, topicId: string, citiz
     { $match: { citizenId: new Types.ObjectId(citizenId) } },
     { $group: { _id: null, total: { $sum: '$xpAwarded' } } },
   ]);
+
   const xpTotal = totalProgress[0]?.total || 0;
 
   // Get streak (simplified)

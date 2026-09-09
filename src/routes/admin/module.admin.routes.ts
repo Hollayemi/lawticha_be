@@ -36,6 +36,8 @@ import {
   getCommentsHandler,
   resolveCommentHandler,
   deleteCommentHandler,
+  // Review handler (instructor-submitted modules)
+  reviewModuleHandler,
 } from "../../controllers/module.controller";
 
 const router = Router();
@@ -63,6 +65,9 @@ router
   .get(getModuleHandler)
   .patch(updateModuleHandler)
   .delete(deleteModuleHandler);
+
+// PATCH  /admin/modules/:id/review - approve or reject an instructor-submitted module
+router.patch("/:id/review", reviewModuleHandler);
 
 // GET    /admin/modules/:moduleId/topics           - list topics
 // POST   /admin/modules/:moduleId/topics           - create topic

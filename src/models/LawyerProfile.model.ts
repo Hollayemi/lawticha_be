@@ -1,5 +1,6 @@
 import { Schema, model, models, Document, Types } from 'mongoose';
 import { ILawyerProfile, VerificationStatus, LawyerBadge, IVerificationDocument } from './types';
+import { InstructorStatus } from './types/lawticha.types';
 
 // Document interface 
 
@@ -70,6 +71,25 @@ export interface ILawyerProfileDocument extends Omit<ILawyerProfile, '_id'>, Doc
 
   /** Returns true when the lawyer has completed verification */
   get isVerified(): boolean;
+
+  /**
+   * Lawyer applies to become an instructor (create legal content).
+   * Sets instructorStatus → 'pending'.
+   */
+  requestInstructor(motivation?: string): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Admin approves the instructor request. Sets instructorStatus → 'approved'.
+   */
+  approveInstructor(adminId: Types.ObjectId): Promise<ILawyerProfileDocument>;
+
+  /**
+   * Admin rejects the instructor request, with a reason. Lawyer may re-apply.
+   */
+  rejectInstructor(adminId: Types.ObjectId, reason: string): Promise<ILawyerProfileDocument>;
+
+  /** Returns true when the lawyer is an approved instructor */
+  get isInstructor(): boolean;
 }
 
 // Verification workflow order 
@@ -179,6 +199,21 @@ const LawyerProfileSchema = new Schema<ILawyerProfileDocument>(
     // UI avatar colours 
     colorA: { type: String, default: '#1E3A5F' },
     colorB: { type: String, default: '#2D5A8E' },
+
+    // Instructor onboarding 
+    instructorStatus: {
+      type:    String,
+      enum:    Object.values(InstructorStatus),
+      default: InstructorStatus.NONE,
+      index:   true,
+    },
+    instructorRequestedAt:    { type: Date },
+    instructorMotivation:     { type: String, maxlength: 1000 },
+    instructorApprovedAt:     { type: Date },
+    instructorApprovedBy:     { type: Schema.Types.ObjectId, ref: 'AdminUser' },
+    instructorRejectedReason: { type: String },
+    instructorReviewedAt:     { type: Date },
+    instructorReviewedBy:     { type: Schema.Types.ObjectId, ref: 'AdminUser' },
   },
   {
     timestamps: true,
@@ -329,6 +364,65 @@ LawyerProfileSchema.methods.setAvailability = async function (
     throw new Error('Only verified lawyers can set themselves as available');
   }
   this.isAvailable = available;
+  return this.save();
+};
+
+// Virtual: isInstructor 
+
+LawyerProfileSchema.virtual('isInstructor').get(function (
+  this: ILawyerProfileDocument
+): boolean {
+  return this.instructorStatus === InstructorStatus.APPROVED;
+});
+
+// Instance method: requestInstructor 
+
+LawyerProfileSchema.methods.requestInstructor = async function (
+  this: ILawyerProfileDocument,
+  motivation?: string
+): Promise<ILawyerProfileDocument> {
+  if (this.instructorStatus === InstructorStatus.APPROVED) {
+    throw new Error('You are already an approved instructor.');
+  }
+  if (this.instructorStatus === InstructorStatus.PENDING) {
+    throw new Error('You already have an instructor request pending review.');
+  }
+
+  this.instructorStatus         = InstructorStatus.PENDING;
+  this.instructorRequestedAt    = new Date();
+  this.instructorMotivation     = motivation;
+  this.instructorRejectedReason = undefined;
+  this.instructorReviewedAt     = undefined;
+  this.instructorReviewedBy     = undefined;
+
+  return this.save();
+};
+
+// Instance method: approveInstructor 
+
+LawyerProfileSchema.methods.approveInstructor = async function (
+  this: ILawyerProfileDocument,
+  adminId: Types.ObjectId
+): Promise<ILawyerProfileDocument> {
+  this.instructorStatus     = InstructorStatus.APPROVED;
+  this.instructorApprovedAt = new Date();
+  this.instructorApprovedBy = adminId;
+  this.instructorReviewedAt = new Date();
+  this.instructorReviewedBy = adminId;
+  return this.save();
+};
+
+// Instance method: rejectInstructor 
+
+LawyerProfileSchema.methods.rejectInstructor = async function (
+  this: ILawyerProfileDocument,
+  adminId: Types.ObjectId,
+  reason: string
+): Promise<ILawyerProfileDocument> {
+  this.instructorStatus         = InstructorStatus.REJECTED;
+  this.instructorRejectedReason = reason;
+  this.instructorReviewedAt     = new Date();
+  this.instructorReviewedBy     = adminId;
   return this.save();
 };
 

@@ -96,6 +96,12 @@ export enum AuditAction {
   DOCUMENT_VERIFIED = "document_verified",
   LAWYER_STATUS_CHANGED = "lawyer_status_changed",
 
+  // instructor onboarding & content review
+  INSTRUCTOR_REQUEST_APPROVED = "instructor_request_approved",
+  INSTRUCTOR_REQUEST_REJECTED = "instructor_request_rejected",
+  MODULE_APPROVED = "module_approved",
+  MODULE_REJECTED = "module_rejected",
+
   // library
   BOOK_CREATED = 'book_created',
   BOOK_UPDATED = 'book_updated',
@@ -309,6 +315,16 @@ export interface ILawyerProfile extends BaseModel {
   // UI avatar colours
   colorA: string;
   colorB: string;
+
+  // Instructor onboarding (apply → admin approves → can create modules)
+  instructorStatus: import('./lawticha.types').InstructorStatus;
+  instructorRequestedAt?: Date;
+  instructorMotivation?: string;        // why they want to teach, provided at request time
+  instructorApprovedAt?: Date;
+  instructorApprovedBy?: Types.ObjectId;
+  instructorRejectedReason?: string;
+  instructorReviewedAt?: Date;
+  instructorReviewedBy?: Types.ObjectId;
 }
 
 // Admin User 
@@ -339,7 +355,7 @@ export interface IAuditLog extends BaseModel {
   adminId: ObjectId;
   adminName: string;
   action: AuditAction;
-  targetType: 'citizen' | 'lawyer' | 'verification' | 'document';
+  targetType: 'citizen' | 'lawyer' | 'verification' | 'document' | 'instructor' | 'module';
   targetId: ObjectId | string;
   meta?: any;
 }
@@ -574,6 +590,9 @@ export interface IEnrollment extends BaseModel {
   currentLessonId?: ObjectId;
   currentLessonTitle?: string;
   startedAt: Date;
+  overallTime: number;
+  currentTimeSpent: number;
+  totalLessons: number;
   completedAt?: Date;
   lastActivityAt: Date;
   xpEarned: number;

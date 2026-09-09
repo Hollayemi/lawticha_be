@@ -98,8 +98,6 @@ export async function toggleLikeSubtopic(subtopicId: string, citizenId: string) 
   };
 }
 
-//  Mark as complete 
-
 export async function toggleCompleteSubtopic(subtopicId: string, citizenId: string) {
   const { subtopic } = await loadSubtopicContext(subtopicId);
 
@@ -123,6 +121,7 @@ export async function toggleCompleteSubtopic(subtopicId: string, citizenId: stri
       subtopicId: subtopic._id,
       topicId: subtopic.topicId,
       moduleId: subtopic.moduleId,
+      duration: subtopic.durationSeconds,
       completed: nowCompleted,
       completedAt: nowCompleted ? new Date() : undefined,
     });

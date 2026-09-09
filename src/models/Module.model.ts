@@ -5,7 +5,13 @@ import { Schema, model, models, Document, Types } from 'mongoose';
 export type ModuleCategory =  | 'criminal' | 'tenancy' | 'employment' | 'contracts'
   | 'business' | 'family' | 'consumer' | 'road';
 
-export type ModuleStatus  = 'active' | 'inactive' | 'pending';
+// 'draft'    – instructor is still working on it, not visible to admin queue
+// 'pending'  – submitted by instructor (or created by admin), awaiting admin review
+// 'active'   – reviewed & published, visible to citizens
+// 'rejected' – admin sent it back with a review note; instructor can edit & resubmit
+// 'inactive' – previously active, unpublished by admin
+export type ModuleStatus  = 'draft' | 'active' | 'inactive' | 'pending' | 'rejected';
+export type ModuleCreatedBy = 'admin' | 'instructor';
 export type TopicStatus   = 'published' | 'draft' | 'pending';
 export type VideoType     = 'youtube' | 'upload';
 export type ActivityAction =
@@ -131,6 +137,14 @@ export interface IModule {
   instructorInitials: string;
   instructorColor:    string;
   trending:           boolean;
+
+  // Ownership & review workflow (lawyer-authored content)
+  createdBy:          ModuleCreatedBy;   // 'admin' | 'instructor'
+  submittedAt:        Date | null;       // when instructor submitted for review
+  reviewedAt:          Date | null;
+  reviewedBy:         Types.ObjectId | null; // admin who approved/rejected
+  reviewNote:         string;            // admin's feedback (esp. on rejection)
+
   createdAt:          Date;
   updatedAt:          Date;
 }
@@ -144,7 +158,7 @@ const ModuleSchema = new Schema<IModule>(
       required: true,
       enum: ['criminal','tenancy','employment','contracts','business','family','consumer','road'],
     },
-    status:      { type: String, enum: ['active','inactive','pending'], default: 'pending' },
+    status:      { type: String, enum: ['draft','active','inactive','pending','rejected'], default: 'pending' },
     thumbnail:   { type: String, default: null },
     description: { type: String, default: '' },
     topicCount:  { type: Number, default: 0 },
@@ -165,6 +179,13 @@ const ModuleSchema = new Schema<IModule>(
     instructorColor:    { type: String, default: '#1E3A5F' },
 
     trending: { type: Boolean, default: false },
+
+    // Ownership & review workflow
+    createdBy:   { type: String, enum: ['admin', 'instructor'], default: 'admin' },
+    submittedAt: { type: Date, default: null },
+    reviewedAt:  { type: Date, default: null },
+    reviewedBy:  { type: Schema.Types.ObjectId, ref: 'AdminUser', default: null },
+    reviewNote:  { type: String, default: '' },
   },
   { timestamps: true, collection: 'admin_modules' }
 );
@@ -172,6 +193,7 @@ const ModuleSchema = new Schema<IModule>(
 ModuleSchema.index({ status: 1 });
 ModuleSchema.index({ category: 1 });
 ModuleSchema.index({ trending: 1 });
+ModuleSchema.index({ instructorId: 1, status: 1 });
 ModuleSchema.index({ title: 'text', description: 'text' });
 
 export const ModuleModel =

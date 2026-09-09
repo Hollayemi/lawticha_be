@@ -34,6 +34,14 @@ export enum LawyerBadge {
   RESPONSIVE = 'Responsive',
 }
 
+// Instructor onboarding (lawyer → content creator)
+export enum InstructorStatus {
+  NONE     = 'none',      // never requested
+  PENDING  = 'pending',   // requested, awaiting admin decision
+  APPROVED = 'approved',  // can create modules
+  REJECTED = 'rejected',  // request denied, can re-apply
+}
+
 export enum ConsultationType {
   MESSAGE = 'message',
   CALL    = 'call',
@@ -167,7 +175,7 @@ export interface IAuditLog extends BaseModel {
   adminId: ObjectId;
   adminName: string;
   action: AuditAction;
-  targetType: 'citizen' | 'lawyer' | 'verification' | 'document';
+  targetType: 'citizen' | 'lawyer' | 'verification' | 'document' | 'instructor' | 'module';
   targetId: ObjectId | string;
   meta?: Record<string, unknown>;
 }

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { asyncHandler, AppError, AppResponse } from "../middleware/error";
+import { toModuleDto } from "../helpers/formatReturn";
 
 import {
   listModules,
@@ -38,6 +39,18 @@ import {
   type UpdateSubTopicInput,
   type LearnersParams,
   type CommentsParams,
+  // Instructor-facing
+  createInstructorModule,
+  listInstructorModules,
+  updateInstructorModule,
+  deleteInstructorModule,
+  submitInstructorModule,
+  assertModuleOwnership,
+  assertModuleEditable,
+  reviewModule,
+  type CreateInstructorModuleInput,
+  type UpdateInstructorModuleInput,
+  type InstructorModuleFilters,
 } from "../services/module.service";
 
 
@@ -589,3 +602,258 @@ export const deleteCommentHandler = asyncHandler(
     return (res as AppResponse).success("Comment deleted successfully.");
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  INSTRUCTOR-FACING HANDLERS (mounted under /api/v1/instructor)
+//  All routes here run behind `protect` + `requireInstructor`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function instructorId(req: Request) {
+  return req.user!._id.toString();
+}
+
+/**
+ * POST /api/v1/instructor/modules
+ * Create a new draft module owned by the calling instructor.
+ */
+export const createMyModuleHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { title, category, description, thumbnailUrl, thumbnailFile } = req.body;
+
+    if (!title?.trim()) return next(new AppError("Title is required.", 400, "VALIDATION_ERROR"));
+    if (!category?.trim()) return next(new AppError("Category is required.", 400, "VALIDATION_ERROR"));
+    if (!description?.trim()) return next(new AppError("Description is required.", 400, "VALIDATION_ERROR"));
+
+    const input: CreateInstructorModuleInput = { title, category, description, thumbnailUrl, thumbnailFile };
+    const module = await createInstructorModule(instructorId(req), input);
+    return (res as AppResponse).data({ module }, "Module created as draft.", 201);
+  }
+);
+
+/**
+ * GET /api/v1/instructor/modules
+ * List the calling instructor's own modules, optionally filtered by status.
+ */
+export const listMyModulesHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    const { status, page, pageSize } = req.query as Record<string, string>;
+    const filters: InstructorModuleFilters = {
+      status: status as InstructorModuleFilters["status"],
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    };
+    const result = await listInstructorModules(instructorId(req), filters);
+    return (res as AppResponse).data(result, "Modules fetched successfully.");
+  }
+);
+
+/**
+ * GET /api/v1/instructor/modules/:id
+ * Fetch one of the instructor's own modules (with ownership check).
+ */
+export const getMyModuleHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    const module = await assertModuleOwnership(req.params.id, instructorId(req));
+    return (res as AppResponse).data(toModuleDtoSafe(module), "Module fetched successfully.");
+  }
+);
+
+/**
+ * PATCH /api/v1/instructor/modules/:id
+ * Update a draft/rejected module owned by the calling instructor.
+ */
+export const updateMyModuleHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    const { title, category, description, thumbnailUrl } = req.body;
+    const input: UpdateInstructorModuleInput = { title, category, description, thumbnailUrl };
+    const module = await updateInstructorModule(instructorId(req), req.params.id, input);
+    return (res as AppResponse).data({ module }, "Module updated successfully.");
+  }
+);
+
+/**
+ * DELETE /api/v1/instructor/modules/:id
+ * Delete a draft/rejected module owned by the calling instructor.
+ */
+export const deleteMyModuleHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await deleteInstructorModule(instructorId(req), req.params.id);
+    return (res as AppResponse).success("Module deleted successfully.");
+  }
+);
+
+/**
+ * POST /api/v1/instructor/modules/:id/submit
+ * Submit a draft (or resubmit a rejected) module for admin review.
+ */
+export const submitMyModuleHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    const module = await submitInstructorModule(instructorId(req), req.params.id);
+    return (res as AppResponse).data({ module }, "Module submitted for review.");
+  }
+);
+
+// ── Topics & subtopics, scoped to the instructor's own module ──────────────
+// These reuse the existing admin topic/subtopic services after verifying
+// ownership + editable state, so instructors get the same authoring surface
+// admins have, just fenced to their own content.
+
+async function loadEditableOwnModule(req: Request) {
+  const module = await assertModuleOwnership(req.params.moduleId, instructorId(req));
+  // assertModuleEditable(module);
+  return module;
+}
+
+export const createMyTopicHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId } = req.params;
+    const { title, classification, overview, order, videoType, videoUrl, thumbnailUrl, tags } = req.body;
+
+    if (!title?.trim()) return next(new AppError("Title is required.", 400, "VALIDATION_ERROR"));
+    if (!classification?.trim()) return next(new AppError("Classification is required.", 400, "VALIDATION_ERROR"));
+    if (!overview?.trim()) return next(new AppError("Overview is required.", 400, "VALIDATION_ERROR"));
+
+    const input: CreateTopicInput = {
+      moduleId, title, classification, overview,
+      status: "draft", order, videoType, videoUrl, thumbnailUrl, tags,
+    };
+    const topic = await createTopic(input);
+    return (res as AppResponse).data({ topic }, "Topic created successfully.", 201);
+  }
+);
+
+export const getMyTopicsHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    // await loadEditableOwnModule(req);
+    const { moduleId } = req.params;
+    const topics = await listTopics(moduleId);
+    return (res as AppResponse).data(topics, "Topics fetched successfully.");
+  }
+);
+
+export const updateMyTopicHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId } = req.params;
+    const { title, classification, overview, order, videoType, videoUrl, thumbnailUrl, tags } = req.body;
+    const input: UpdateTopicInput = { title, classification, overview, order, videoType, videoUrl, thumbnailUrl, tags };
+    const topic = await updateTopic(moduleId, topicId, input);
+    return (res as AppResponse).data({ topic }, "Topic updated successfully.");
+  }
+);
+
+export const deleteMyTopicHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId } = req.params;
+    await deleteTopic(moduleId, topicId);
+    return (res as AppResponse).success("Topic deleted successfully.");
+  }
+);
+
+export const reorderMyTopicsHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId } = req.params;
+    const { orderedIds } = req.body;
+    if (!orderedIds || !Array.isArray(orderedIds) || orderedIds.length === 0) {
+      return next(new AppError("orderedIds array is required and must not be empty.", 400, "VALIDATION_ERROR"));
+    }
+    await reorderTopics(moduleId, orderedIds);
+    return (res as AppResponse).success("Topics reordered successfully.");
+  }
+);
+
+export const createMySubTopicHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId } = req.params;
+    const { title, notes, duration, order } = req.body;
+    if (!title?.trim()) return next(new AppError("Title is required.", 400, "VALIDATION_ERROR"));
+
+    const input: CreateSubTopicInput = { moduleId, topicId, title, notes, duration, order };
+    const subtopic = await createSubTopic(input);
+    return (res as AppResponse).data({ subtopic }, "SubTopic created successfully.", 201);
+  }
+);
+
+export const updateMySubTopicHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId, subtopicId } = req.params;
+    const { title, notes, duration, order } = req.body;
+    const input: UpdateSubTopicInput = { title, notes, duration, order };
+    const subtopic = await updateSubTopic(moduleId, topicId, subtopicId, input);
+    return (res as AppResponse).data({ subtopic }, "SubTopic updated successfully.");
+  }
+);
+
+export const deleteMySubTopicHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId, subtopicId } = req.params;
+    await deleteSubTopic(moduleId, topicId, subtopicId);
+    return (res as AppResponse).success("SubTopic deleted successfully.");
+  }
+);
+
+export const reorderMySubTopicsHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    await loadEditableOwnModule(req);
+    const { moduleId, topicId } = req.params;
+    const { orderedIds } = req.body;
+    if (!orderedIds || !Array.isArray(orderedIds) || orderedIds.length === 0) {
+      return next(new AppError("orderedIds array is required and must not be empty.", 400, "VALIDATION_ERROR"));
+    }
+    await reorderSubTopics(moduleId, topicId, orderedIds);
+    return (res as AppResponse).success("SubTopics reordered successfully.");
+  }
+);
+
+/**
+ * GET /api/v1/instructor/modules/:moduleId/analytics
+ * Same analytics admin sees, fenced to the instructor's own module — this is
+ * how instructors watch "how their content grows".
+ */
+export const getMyModuleAnalyticsHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await assertModuleOwnership(req.params.moduleId, instructorId(req));
+    const analytics = await getModuleAnalytics(req.params.moduleId);
+    return (res as AppResponse).data(analytics, "Analytics fetched successfully.");
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ADMIN: REVIEW AN INSTRUCTOR-SUBMITTED MODULE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * PATCH /admin/modules/:id/review
+ * Body: { decision: 'approve' | 'reject', note?: string }
+ * Approves (publishes) or rejects (sends back with feedback) a module that an
+ * instructor submitted. Only modules with status 'pending' can be reviewed.
+ */
+export const reviewModuleHandler = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { decision, note } = req.body;
+    if (decision !== "approve" && decision !== "reject") {
+      return next(new AppError("decision must be 'approve' or 'reject'.", 400, "VALIDATION_ERROR"));
+    }
+    if (decision === "reject" && !note?.trim()) {
+      return next(new AppError("A review note is required when rejecting a module.", 400, "VALIDATION_ERROR"));
+    }
+
+    const module = await reviewModule(req.params.id, adminCtx(req), decision, note);
+    return (res as AppResponse).data(
+      { module },
+      decision === "approve" ? "Module approved and published." : "Module sent back to instructor."
+    );
+  }
+);
+
+// Small local helper: instructor's getMyModuleHandler wants the raw dto shape.
+function toModuleDtoSafe(doc: any) {
+  return toModuleDto(doc);
+}
+

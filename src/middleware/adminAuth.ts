@@ -41,6 +41,7 @@ export const protectAdmin = asyncHandler(
         token,
         process.env.ADMIN_JWT_SECRET ?? process.env.JWT_SECRET!
       ) as any;
+      console.log('Decoded token:', decoded);
     } catch (err: any) {
       const message =
         err.name === 'TokenExpiredError'

@@ -20,11 +20,10 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     },
     moduleId: {
       type: Schema.Types.ObjectId,
-      ref: 'LegalModule',
+      ref: 'AdminModule',
       required: true,
       index: true,
     },
-
     status: {
       type: String,
       enum: ['active', 'complete', 'saved', 'dropped'],
@@ -33,6 +32,10 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     },
 
     progressPercent:    { type: Number, default: 0, min: 0, max: 100 },
+    overallTime: {  type: Number, default: 0 }, // denorm for dashboard card
+    currentTimeSpent: { type: Number, default: 0 }, // denorm for dashboard card
+    totalLessons: { type: Number, default: 0 }, // denorm for dashboard card
+
     lessonsCompleted:   [{ type: Schema.Types.ObjectId }], // lesson._id list
     currentLessonId:    { type: Schema.Types.ObjectId },   // lesson currently on
     currentLessonTitle: { type: String },                  // denorm for dashboard card
